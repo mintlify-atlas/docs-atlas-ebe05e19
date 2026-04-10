@@ -1,0 +1,124 @@
+{
+  "projectType": "saas",
+  "projectName": "VadedTV",
+  "projectDescription": "VadedTV is a full-stack movie and TV series streaming discovery platform with user accounts, watchlists, live community chat, and integration with TMDB.",
+  "theme": "almond",
+  "primaryColor": "#d14a4a",
+  "lightColor": "#828282",
+  "darkColor": "#27191a",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "self-hosting"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/browsing-discovery",
+              "features/watchlist-history",
+              "features/streaming-player",
+              "features/live-chat",
+              "features/search"
+            ]
+          },
+          {
+            "group": "Authentication",
+            "pages": [
+              "auth/overview",
+              "auth/google-oauth",
+              "auth/anonymous-accounts"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/environment-variables",
+              "configuration/streaming-providers",
+              "configuration/plans-subscriptions"
+            ]
+          },
+          {
+            "group": "Admin Guide",
+            "pages": [
+              "admin/dashboard",
+              "admin/user-management",
+              "admin/chat-moderation"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api/overview",
+              "api/authentication"
+            ]
+          },
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api/auth-endpoints",
+              "api/tmdb-endpoints",
+              "api/chat-endpoints",
+              "api/admin-endpoints"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Movie and TV series discovery powered by TMDB",
+    "User authentication with email/password, Google OAuth, and anonymous accounts",
+    "Personal watchlists and watch history synced across sessions",
+    "Multi-source streaming player with provider health checks",
+    "Real-time community live chat via Socket.IO and Supabase",
+    "Advanced search with fuzzy matching, filters, and suggestions",
+    "Plans and subscription management with per-user feature gates",
+    "Admin dashboard for user management, chat moderation, and app settings",
+    "Progressive Web App (PWA) support with offline caching",
+    "Rate limiting, XSS protection, and CORS security middleware"
+  ],
+  "publicApiSurface": [
+    "POST /api/auth/register",
+    "POST /api/auth/login",
+    "GET /api/auth/google",
+    "GET /api/auth/me",
+    "POST /api/auth/logout",
+    "POST /api/auth/refresh",
+    "GET /api/auth/mylist",
+    "POST /api/auth/mylist/add",
+    "DELETE /api/auth/mylist/:id",
+    "GET /api/auth/watch-history",
+    "POST /api/auth/watch-history/add",
+    "GET /api/auth/search-history",
+    "POST /api/auth/register-anon",
+    "POST /api/auth/login-anon",
+    "GET /api/tmdb/feed/home",
+    "GET /api/tmdb/feed/movies",
+    "GET /api/tmdb/feed/series",
+    "GET /api/tmdb/search/multi",
+    "GET /api/tmdb/search/suggestions",
+    "GET /api/tmdb/modal/:type/:id",
+    "GET /api/tmdb/recommendations",
+    "GET /api/chat/rooms",
+    "GET /api/chat/rooms/:roomId/messages",
+    "GET /api/stream/superembed",
+    "GET /api/stream/2embed",
+    "GET /api/admin/stats",
+    "GET /api/admin/users",
+    "PATCH /api/admin/providers",
+    "POST /api/admin/providers/health-check"
+  ]
+}

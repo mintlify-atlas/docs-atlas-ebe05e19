@@ -1,0 +1,108 @@
+---
+title: "VadedTV REST API overview"
+description: "The VadedTV REST API provides endpoints for auth, content discovery, watchlists, chat, and admin operations. Base URL and response format."
+---
+
+VadedTV exposes a REST API used by its own frontend and available for custom integrations. All API routes are served from the same origin as the application and are prefixed with `/api`.
+
+## Base URL
+
+The base URL for all API requests is your deployment URL followed by `/api`:
+
+```
+https://yoursite.com/api
+```
+
+For local development the default is:
+
+```
+http://localhost:3000/api
+```
+
+## Request format
+
+Send all request bodies as JSON and include the `Content-Type` header:
+
+```
+Content-Type: application/json
+```
+
+The server accepts up to **50 MB** per request body.
+
+## Response format
+
+Every endpoint returns JSON. Successful responses include a `success: true` field alongside the payload:
+
+```json
+{
+  "success": true,
+  "data": { ... }
+}
+```
+
+Error responses include `success: false` and a human-readable `message`:
+
+```json
+{
+  "success": false,
+  "message": "Authentication required"
+}
+```
+
+Some error responses also include a machine-readable `code` field (e.g. `EXPIRED_TOKEN`, `NO_TOKEN`) that your client can use to branch on specific error conditions.
+
+## Rate limiting
+
+The API enforces a global rate limit of **10,000 requests per 15 minutes per IP address**. When the limit is exceeded the server responds with HTTP `429` and the message:
+
+```
+Too many requests from this IP, please try again after 15 minutes
+```
+
+Rate limit metadata is returned in standard `RateLimit-*` response headers.
+
+<Note>
+  The rate limit applies globally across all `/api/*` routes, not per endpoint. High-frequency polling (e.g. for chat or recommendations) should use WebSocket events instead of repeated HTTP requests.
+</Note>
+
+## Health check endpoints
+
+Three lightweight endpoints are available for uptime monitoring and load balancer health checks:
+
+| Endpoint | Description |
+|---|---|
+| `GET /health` | Reports server and database status. Returns `{ success, message, database, timestamp }`. |
+| `GET /ping` | Ultra-light latency check. Returns the plain-text string `pong`. |
+| `GET /api/health` | Returns `{ success, message, environment, timestamp }`. Used by Dokploy and similar platforms. |
+
+```bash
+curl https://yoursite.com/health
+# {"success":true,"message":"Server is running","database":"connected","timestamp":"..."}
+
+curl https://yoursite.com/ping
+# pong
+```
+
+## Endpoint groups
+
+<CardGroup cols={2}>
+  <Card title="Auth" icon="lock" href="/api/auth-endpoints">
+    User registration, login (email and anonymous), JWT refresh, watchlist, watch history, and search history.
+  </Card>
+  <Card title="TMDB / Content" icon="film" href="/api/tmdb-endpoints">
+    Aggregated home, movies, and series feeds. Multi-search with fuzzy matching, filters, and pagination. Modal data and recommendations.
+  </Card>
+  <Card title="Chat" icon="comments" href="/api/chat-endpoints">
+    Room listings, paginated message history, chat settings, and active broadcast data. Real-time updates via Socket.IO.
+  </Card>
+  <Card title="Admin" icon="shield-halved" href="/api/admin-endpoints">
+    Platform stats, user management, streaming providers, subscription plans, and chat moderation. Requires admin authentication.
+  </Card>
+  <Card title="Authentication guide" icon="key" href="/api/authentication">
+    How to obtain, send, and refresh JWT tokens. Error codes and logout flow.
+  </Card>
+</CardGroup>
+
+<Tip>
+  All authenticated endpoints accept a JWT either as an HTTP-only cookie (automatic for browser clients) or as a `Bearer` token in the `Authorization` header. See the [authentication guide](/api/authentication) for details.
+</Tip>

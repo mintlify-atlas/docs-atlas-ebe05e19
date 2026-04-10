@@ -1,0 +1,134 @@
+---
+title: "Authenticating requests to the VadedTV API"
+description: "VadedTV API uses HTTP-only JWT cookies for authentication. Learn how to obtain a token, refresh it, and handle authentication errors."
+---
+
+The VadedTV API authenticates requests using JWT tokens stored in HTTP-only cookies. Tokens are issued on login and automatically included in same-origin browser requests. For cross-origin or programmatic access, tokens can also be read from the JSON response body and supplied via the `Authorization` header.
+
+## Getting a token
+
+### Email/password login
+
+```bash
+curl -s -c cookies.txt -X POST https://yoursite.com/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "password": "secret123"}'
+```
+
+```json
+{
+  "success": true,
+  "token": "<access_token>",
+  "refreshToken": "<refresh_token>",
+  "user": { ... }
+}
+```
+
+### Anonymous (username) login
+
+```bash
+curl -s -c cookies.txt -X POST https://yoursite.com/api/auth/login-anon \
+  -H "Content-Type: application/json" \
+  -d '{"username": "Shadow#4821", "password": "secret123"}'
+```
+
+On success the server sets two HTTP-only cookies:
+
+| Cookie | Contents | Lifetime |
+|---|---|---|
+| `token` | Access token (JWT) | Cookie lifetime set by `JWT_COOKIE_EXPIRE` (default 30 days). Token itself expires per `JWT_EXPIRE` (default 7 days). |
+| `refreshToken` | Refresh token (JWT) | Always 30 days (both cookie and token). |
+
+Both cookies are `httpOnly`, `secure` in production, and use `SameSite=None` in production / `SameSite=Lax` in development.
+
+## Using the token
+
+### Browser (same-origin)
+
+Cookies are sent automatically. No extra configuration is needed.
+
+### Browser (cross-origin)
+
+Include credentials in every `fetch` call so the browser sends the cookies:
+
+```javascript
+const res = await fetch('https://yoursite.com/api/auth/me', {
+  credentials: 'include',
+});
+const data = await res.json();
+```
+
+### Authorization header (server-to-server / mobile)
+
+If you cannot use cookies, pass the access token as a Bearer token:
+
+```bash
+curl https://yoursite.com/api/auth/me \
+  -H "Authorization: Bearer <access_token>"
+```
+
+```javascript
+const res = await fetch('https://yoursite.com/api/auth/me', {
+  headers: {
+    'Authorization': `Bearer ${accessToken}`,
+  },
+});
+```
+
+<Note>
+  The `Authorization` header takes priority over the cookie when both are present. The cookie is preferred for browser clients because it cannot be accessed by JavaScript and is therefore safer against XSS.
+</Note>
+
+## Refreshing the token
+
+When the access token expires, use the refresh token to obtain a new pair without requiring the user to log in again. The server blacklists the old refresh token on every successful refresh.
+
+```bash
+# Using the refreshToken cookie (browser):
+curl -s -b cookies.txt -c cookies.txt -X POST https://yoursite.com/api/auth/refresh
+
+# Supplying the refresh token in the request body:
+curl -s -X POST https://yoursite.com/api/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"refreshToken": "<refresh_token>"}'
+```
+
+A successful response sets new `token` and `refreshToken` cookies and returns the same fields as a login response.
+
+<Note>
+  The server sets the response header `X-Token-Expiring-Soon: true` on protected endpoints when the current access token will expire within the next hour. Use this signal to proactively call `/api/auth/refresh` before the token expires.
+</Note>
+
+## Logging out
+
+```bash
+curl -s -b cookies.txt -X POST https://yoursite.com/api/auth/logout
+```
+
+The server blacklists both the access token and the refresh token in its in-memory blacklist, then overwrites the cookies with expired values. Subsequent requests with the old tokens will be rejected.
+
+## Error codes
+
+All authentication errors return HTTP `401` or `403` with a JSON body. The `code` field is machine-readable and stable across versions:
+
+| HTTP status | `code` | Meaning |
+|---|---|---|
+| `401` | `NO_TOKEN` | No token was provided. |
+| `401` | `INVALID_TOKEN` | The token signature is invalid or malformed. |
+| `401` | `EXPIRED_TOKEN` | The token has expired. Call `/api/auth/refresh`. |
+| `401` | `BLACKLISTED_TOKEN` | The token was invalidated by a logout. |
+| `401` | `USER_NOT_FOUND` | The token is valid but the user no longer exists. |
+| `403` | — | Valid token but the route requires elevated permissions (e.g. admin). |
+| `429` | — | Rate limit exceeded. Wait and retry. |
+
+```json
+{
+  "success": false,
+  "code": "EXPIRED_TOKEN",
+  "message": "Session expired. Please log in again."
+}
+```
+
+<Warning>
+  The token blacklist is stored in memory. Restarting the server clears the blacklist, which means logged-out tokens become valid again until they expire naturally. For production deployments that restart frequently, consider migrating the blacklist to Redis.
+</Warning>

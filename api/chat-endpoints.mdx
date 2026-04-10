@@ -1,0 +1,207 @@
+---
+title: "Chat API endpoints — rooms and messages"
+description: "REST endpoints for listing VadedTV chat rooms, fetching paginated message history, retrieving chat settings, and polling active broadcasts."
+---
+
+VadedTV's chat API serves room listings, paginated message history, global chat settings, and active broadcast data. All public endpoints are unauthenticated. Real-time delivery of new messages, reactions, and broadcast events is handled via Socket.IO rather than polling.
+
+---
+
+## Public endpoints
+
+### `GET /api/chat/rooms`
+
+Returns the list of active chat rooms ordered by `sort_order` ascending.
+
+```bash
+curl -s https://yoursite.com/api/chat/rooms
+```
+
+```json
+{
+  "rooms": [
+    {
+      "id": "uuid",
+      "name": "General",
+      "slug": "general",
+      "description": "The main community room",
+      "type": "community",
+      "sort_order": 0,
+      "is_active": true
+    }
+  ]
+}
+```
+
+**Response fields per room**
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | string (UUID) | Unique room identifier. |
+| `name` | string | Human-readable room name. |
+| `slug` | string | URL-safe identifier (lowercase, alphanumeric and hyphens). |
+| `description` | string \| null | Optional room description. |
+| `type` | string | Room type: `community`, `support`, or `custom`. |
+| `sort_order` | integer | Display order (ascending). |
+| `is_active` | boolean | Always `true` for public endpoint results. |
+
+---
+
+### `GET /api/chat/rooms/:roomId/messages`
+
+Returns paginated message history for a room, ordered newest first. Use the `before` cursor for infinite-scroll pagination.
+
+**Path parameters**
+
+<ParamField path="roomId" type="string" required>
+  UUID of the chat room.
+</ParamField>
+
+**Query parameters**
+
+<ParamField query="limit" type="integer">
+  Number of messages to return. Maximum `100`, default `50`.
+</ParamField>
+
+<ParamField query="before" type="string">
+  Cursor for pagination. Pass the `id` of the oldest message in the current page to fetch the next page of older messages.
+</ParamField>
+
+```bash
+# First page (50 newest messages):
+curl -s "https://yoursite.com/api/chat/rooms/<roomId>/messages"
+
+# Next page of older messages:
+curl -s "https://yoursite.com/api/chat/rooms/<roomId>/messages?before=<oldest_message_id>&limit=50"
+```
+
+```json
+{
+  "messages": [
+    {
+      "id": "...",
+      "content": "Hello!",
+      "message_type": "text",
+      "image_url": null,
+      "is_deleted": false,
+      "created_at": "2024-06-01T12:00:00.000Z",
+      "user_id": "uuid",
+      "user_name": "Shadow",
+      "user_avatar": "https://...",
+      "user_is_admin": false,
+      "reactions": [
+        { "id": "...", "emoji": "👍", "user_id": "uuid" }
+      ]
+    }
+  ],
+  "hasMore": true
+}
+```
+
+**Response fields per message**
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | string | Unique message ID. Use as the `before` cursor. |
+| `content` | string | Message text (may be empty if image-only). |
+| `message_type` | string | Message type (e.g. `text`, `image`). |
+| `image_url` | string \| null | URL to attached image, if any. |
+| `is_deleted` | boolean | `true` if soft-deleted by an admin. |
+| `created_at` | string | ISO 8601 timestamp. |
+| `user_id` | string | Sender's user UUID. |
+| `user_name` | string \| null | Sender's display name. |
+| `user_avatar` | string \| null | Sender's avatar URL. |
+| `user_is_admin` | boolean | Whether the sender is an admin. |
+| `reactions` | array | Reaction objects with `id`, `emoji`, and `user_id`. |
+| `hasMore` | boolean | Top-level field. `true` if there are older messages before this page. |
+
+---
+
+### `GET /api/chat/settings`
+
+Returns the current chat settings as a key/value map.
+
+```bash
+curl -s https://yoursite.com/api/chat/settings
+```
+
+```json
+{
+  "chat_enabled": "true"
+}
+```
+
+<Note>
+  All values are stored and returned as strings. Cast as needed in your client (e.g. `settings.chat_enabled === 'true'`).
+</Note>
+
+---
+
+### `GET /api/chat/broadcast/active`
+
+Returns the currently active broadcast announcement, or `null` if none is active. A broadcast is considered active when `is_active` is `true` and either `expires_at` is `null` (no expiry) or `expires_at` is in the future.
+
+```bash
+curl -s https://yoursite.com/api/chat/broadcast/active
+```
+
+```json
+{
+  "broadcast": {
+    "id": "uuid",
+    "title": "Maintenance window",
+    "content": "The site will be down for 10 minutes at 3 AM UTC.",
+    "action_link": null,
+    "icon_url": null,
+    "sound_effect": "notification",
+    "theme": "info",
+    "duration": 300,
+    "is_active": true,
+    "expires_at": "2024-06-01T03:10:00.000Z",
+    "created_at": "2024-06-01T03:00:00.000Z"
+  }
+}
+```
+
+Returns `{ "broadcast": null }` when no broadcast is active.
+
+---
+
+## Real-time updates via Socket.IO
+
+New messages, reactions, and broadcast events are pushed to clients in real time over WebSocket. Connect to the Socket.IO server at your deployment root:
+
+```javascript
+import { io } from 'socket.io-client';
+
+const socket = io('https://yoursite.com', {
+  withCredentials: true,
+  transports: ['websocket', 'polling'],
+});
+```
+
+<Tip>
+  Use the REST endpoints above to load the initial state (existing messages, current settings, active broadcast), then switch to Socket.IO events for incremental updates. This pattern avoids unnecessary polling.
+</Tip>
+
+**Socket.IO events emitted by the server**
+
+| Event | Payload | Description |
+|---|---|---|
+| `chat:settings_updated` | `{ chat_enabled: boolean }` | Emitted whenever an admin changes chat settings (e.g. enables or disables chat globally). |
+| `broadcast_alert` | Broadcast object | Emitted when a new broadcast is created. Contains the full broadcast record. |
+| `broadcast_cleared` | _(none)_ | Emitted when the active broadcast is manually cleared by an admin. |
+
+```javascript
+socket.on('chat:settings_updated', ({ chat_enabled }) => {
+  setChatEnabled(chat_enabled);
+});
+
+socket.on('broadcast_alert', (broadcast) => {
+  showBroadcastBanner(broadcast);
+});
+
+socket.on('broadcast_cleared', () => {
+  hideBroadcastBanner();
+});
+```

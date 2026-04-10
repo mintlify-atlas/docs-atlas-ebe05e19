@@ -1,0 +1,387 @@
+---
+title: "Auth API endpoints — users, lists, and history"
+description: "REST endpoints for user registration, login, profile, watchlist, watch history, and search history. Includes anonymous account routes."
+---
+
+The `/api/auth` group handles everything related to user identity: creating and authenticating accounts (both email-based and anonymous username-based), managing the current user's profile, and syncing per-user data such as the watchlist, watch history, and search history.
+
+---
+
+## Account endpoints
+
+### `POST /api/auth/register`
+
+Create a new email/password account. On success, sets `token` and `refreshToken` cookies and returns the new user profile.
+
+**Request body**
+
+<ParamField body="name" type="string" required>
+  Display name. Must not be empty after trimming.
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  Valid email address. Must be unique across all accounts.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  Password. Minimum 6 characters.
+</ParamField>
+
+```bash
+curl -s -c cookies.txt -X POST https://yoursite.com/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Jane Doe", "email": "jane@example.com", "password": "secret123"}'
+```
+
+Returns HTTP `201` with `{ success, token, refreshToken, user }`.
+
+---
+
+### `POST /api/auth/login`
+
+Authenticate an existing email account. On success, sets `token` and `refreshToken` cookies.
+
+**Request body**
+
+<ParamField body="email" type="string" required>
+  Registered email address.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  Account password.
+</ParamField>
+
+```bash
+curl -s -c cookies.txt -X POST https://yoursite.com/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "jane@example.com", "password": "secret123"}'
+```
+
+Returns HTTP `200` with `{ success, token, refreshToken, user }`.
+
+---
+
+### `POST /api/auth/register-anon`
+
+Create an anonymous (username-only) account. No email is required. The server automatically assigns a unique 4-digit discriminator tag (e.g. `Shadow#4821`) to distinguish users who share the same display name.
+
+**Request body**
+
+<ParamField body="username" type="string" required>
+  Desired display name. Must be 2–20 characters and contain only letters, numbers, and underscores (`[a-zA-Z0-9_]`).
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  Password. Minimum 6 characters.
+</ParamField>
+
+```bash
+curl -s -c cookies.txt -X POST https://yoursite.com/api/auth/register-anon \
+  -H "Content-Type: application/json" \
+  -d '{"username": "Shadow", "password": "secret123"}'
+```
+
+Returns HTTP `201` with `{ success, token, supabaseSession, user }`. The `user.discriminator` field contains the assigned tag.
+
+<Note>
+  Anonymous accounts use a synthetic internal email of the form `shadow_anon_<hex>@anon.vadedtv.internal` to bridge into Supabase Auth. This address is never exposed in API responses.
+</Note>
+
+---
+
+### `POST /api/auth/login-anon`
+
+Authenticate an existing anonymous account using a username and optional discriminator tag.
+
+**Request body**
+
+<ParamField body="username" type="string" required>
+  Username, optionally including the discriminator tag (e.g. `Shadow` or `Shadow#4821`). If multiple accounts share the same display name and no discriminator is supplied, the server returns `{ success: false, needsDiscriminator: true }` prompting the client to ask for the full tag.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  Account password.
+</ParamField>
+
+```bash
+curl -s -c cookies.txt -X POST https://yoursite.com/api/auth/login-anon \
+  -H "Content-Type: application/json" \
+  -d '{"username": "Shadow#4821", "password": "secret123"}'
+```
+
+Returns HTTP `200` with `{ success, token, supabaseSession, user }`.
+
+---
+
+### `GET /api/auth/google`
+
+Redirects the browser to the Google OAuth 2.0 consent screen requesting `profile` and `email` scopes. No request body. After the user authorises, Google redirects to `/api/auth/google/callback`, which sets auth cookies and redirects the browser to `<FRONTEND_URL>/auth/callback?token=<token>`.
+
+---
+
+### `GET /api/auth/me`
+
+**Protected.** Returns the current user's public profile.
+
+```bash
+curl -s -b cookies.txt https://yoursite.com/api/auth/me
+```
+
+```json
+{
+  "success": true,
+  "user": {
+    "id": "...",
+    "name": "Jane Doe",
+    "email": "jane@example.com",
+    "display_username": null,
+    "discriminator": null,
+    "auth_type": "email",
+    "avatar": "https://...",
+    "myList": [],
+    "watchHistory": [],
+    "searchHistory": [],
+    "createdAt": "2024-01-01T00:00:00.000Z"
+  }
+}
+```
+
+<Note>
+  The `email` field is only present for `auth_type: "email"` accounts. Anonymous accounts return `email: undefined`.
+</Note>
+
+---
+
+### `POST /api/auth/logout`
+
+**Protected.** Blacklists the current access token and refresh token, then overwrites both cookies with expired values.
+
+```bash
+curl -s -b cookies.txt -X POST https://yoursite.com/api/auth/logout
+```
+
+Returns `{ success: true, message: "Logged out successfully" }`.
+
+---
+
+### `POST /api/auth/refresh`
+
+Uses the `refreshToken` cookie (or a `refreshToken` field in the request body) to issue a new access/refresh token pair. The old refresh token is blacklisted immediately.
+
+```bash
+# Cookie flow:
+curl -s -b cookies.txt -c cookies.txt -X POST https://yoursite.com/api/auth/refresh
+
+# Body flow:
+curl -s -X POST https://yoursite.com/api/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"refreshToken": "<refresh_token>"}'
+```
+
+---
+
+### `PATCH /api/auth/link-email`
+
+**Protected.** Links an email address to an existing anonymous (`auth_type: "username"`) account, converting it to a full email account. The Supabase Auth user is updated via the Admin API to replace the synthetic internal email.
+
+**Request body**
+
+<ParamField body="email" type="string" required>
+  Valid email address that is not already in use by another account.
+</ParamField>
+
+```bash
+curl -s -b cookies.txt -X PATCH https://yoursite.com/api/auth/link-email \
+  -H "Content-Type: application/json" \
+  -d '{"email": "shadow@example.com"}'
+```
+
+Returns `{ success, message, user }`. After linking, `user.auth_type` becomes `"email"`.
+
+---
+
+## My List endpoints
+
+The watchlist (`myList`) stores arbitrary TMDB item objects chosen by the user.
+
+### `GET /api/auth/mylist`
+
+**Protected.** Returns the current user's watchlist.
+
+```bash
+curl -s -b cookies.txt https://yoursite.com/api/auth/mylist
+# {"success":true,"myList":[...]}
+```
+
+---
+
+### `POST /api/auth/mylist/add`
+
+**Protected.** Appends a TMDB item to the watchlist. Duplicate items (matched by `item.id`) are silently ignored.
+
+<ParamField body="item" type="object" required>
+  Any TMDB media object. Must include at least an `id` field (TMDB numeric ID).
+</ParamField>
+
+```bash
+curl -s -b cookies.txt -X POST https://yoursite.com/api/auth/mylist/add \
+  -H "Content-Type: application/json" \
+  -d '{"item": {"id": 550, "title": "Fight Club", "media_type": "movie"}}'
+```
+
+Returns `{ success, myList }`.
+
+---
+
+### `DELETE /api/auth/mylist/:id`
+
+**Protected.** Removes a single item from the watchlist by its TMDB numeric ID.
+
+```bash
+curl -s -b cookies.txt -X DELETE https://yoursite.com/api/auth/mylist/550
+```
+
+Returns `{ success, myList }`.
+
+---
+
+### `DELETE /api/auth/mylist/clear`
+
+**Protected.** Removes all items from the watchlist.
+
+```bash
+curl -s -b cookies.txt -X DELETE https://yoursite.com/api/auth/mylist/clear
+# {"success":true,"myList":[]}
+```
+
+---
+
+### `PUT /api/auth/mylist`
+
+**Protected.** Performs a full replacement sync — the entire `myList` array on the server is replaced with the supplied array. Use this for bulk client-to-server syncs.
+
+<ParamField body="myList" type="array" required>
+  Complete replacement array of TMDB item objects.
+</ParamField>
+
+---
+
+## Watch History endpoints
+
+Watch history stores up to 100 items per user, with the most recently watched item at index 0. Adding an item that already exists in history moves it to the front.
+
+### `GET /api/auth/watch-history`
+
+**Protected.** Returns the user's watch history array.
+
+```bash
+curl -s -b cookies.txt https://yoursite.com/api/auth/watch-history
+# {"success":true,"watchHistory":[...]}
+```
+
+---
+
+### `POST /api/auth/watch-history/add`
+
+**Protected.** Adds or moves a media item to the front of the watch history. If the item already exists it is removed first, then re-inserted at position 0. The list is capped at 100 entries.
+
+<ParamField body="item" type="object" required>
+  TMDB media object. Recognised fields include `id`, `title`, `name`, `poster_path`, `backdrop_path`, `media_type`, `season`, `episode`, `episodeTitle`, `duration`, `progress`, `overview`, `genres`, `vote_average`, `release_date`, `first_air_date`, and `lastWatched`.
+</ParamField>
+
+```bash
+curl -s -b cookies.txt -X POST https://yoursite.com/api/auth/watch-history/add \
+  -H "Content-Type: application/json" \
+  -d '{"item": {"id": 550, "title": "Fight Club", "media_type": "movie", "progress": 0.42}}'
+```
+
+Returns `{ success, watchHistory }`.
+
+---
+
+### `DELETE /api/auth/watch-history/:id`
+
+**Protected.** Removes a single item from watch history by its TMDB numeric ID.
+
+```bash
+curl -s -b cookies.txt -X DELETE https://yoursite.com/api/auth/watch-history/550
+```
+
+Returns `{ success, watchHistory }`.
+
+---
+
+### `PUT /api/auth/watch-history`
+
+**Protected.** Full replacement sync for watch history.
+
+<ParamField body="watchHistory" type="array" required>
+  Complete replacement array of watch history items.
+</ParamField>
+
+---
+
+## Search History endpoints
+
+Search history stores up to 10 recent queries per user. Queries are stored with a `query` string and a `timestamp`.
+
+### `GET /api/auth/search-history`
+
+**Protected.** Returns the user's saved searches.
+
+```bash
+curl -s -b cookies.txt https://yoursite.com/api/auth/search-history
+# {"success":true,"searchHistory":[{"query":"inception","timestamp":"..."}]}
+```
+
+---
+
+### `POST /api/auth/search-history/add`
+
+**Protected.** Prepends a search query to the history. If the query already exists it is moved to the front. The list is capped at 10 entries.
+
+<ParamField body="query" type="string" required>
+  The search query string to save.
+</ParamField>
+
+```bash
+curl -s -b cookies.txt -X POST https://yoursite.com/api/auth/search-history/add \
+  -H "Content-Type: application/json" \
+  -d '{"query": "inception"}'
+```
+
+Returns `{ success, searchHistory }`.
+
+---
+
+### `DELETE /api/auth/search-history/:query`
+
+**Protected.** Removes a specific query from search history by its exact string value (URL-encoded in the path).
+
+```bash
+curl -s -b cookies.txt -X DELETE \
+  https://yoursite.com/api/auth/search-history/inception
+```
+
+Returns `{ success, searchHistory }`.
+
+---
+
+### `DELETE /api/auth/search-history/clear`
+
+**Protected.** Clears the entire search history.
+
+```bash
+curl -s -b cookies.txt -X DELETE https://yoursite.com/api/auth/search-history/clear
+# {"success":true,"searchHistory":[]}
+```
+
+---
+
+### `PUT /api/auth/search-history`
+
+**Protected.** Full replacement sync for search history. Items are validated (must have a non-empty `query` string) and the list is truncated to 10 entries.
+
+<ParamField body="searchHistory" type="array" required>
+  Array of objects with `query` (string) and optionally `timestamp` (ISO date string).
+</ParamField>

@@ -1,0 +1,66 @@
+---
+title: "Manage streaming providers in the admin panel"
+description: "VadedTV embeds content from third-party streaming providers. Admins can enable, disable, reorder providers, and run health checks from the dashboard."
+---
+
+VadedTV routes playback requests through embedded third-party streaming providers. The player loads providers in order, falling back to the next one if a provider fails to respond. Admins control which providers are active and in what order from the admin dashboard.
+
+## Available providers
+
+The following streaming embed providers are supported and whitelisted in VadedTV's Content Security Policy:
+
+- `vidlink.pro`
+- `111movies.com`
+- `rivestream.net`
+- `vidfast.pro`
+- `player.vidzee.wtf`
+- `player.videasy.net`
+- `vidking.net`
+- `vidsrc.cc`
+- `vidsrc.me`
+- `vidsrc.to`
+- `getsuperembed.link`
+- `streamingnow.mov`
+- `2embed.cc`
+
+<Note>
+Two providers — **2Embed** and **SuperEmbed** — have dedicated server-side proxy routes (`GET /api/stream/2embed` and `GET /api/stream/superembed`) in addition to the standard embed flow.
+</Note>
+
+## How provider selection works
+
+When a user starts playback, the streaming player attempts each enabled provider in the configured order. If a provider fails to load (network error, content unavailable, etc.), the player automatically tries the next provider in the list. Providers that are disabled are skipped entirely.
+
+<Tip>
+Put the providers you trust most (lowest failure rate) at the top of the list so most users never need to fall back.
+</Tip>
+
+## Managing providers in the admin dashboard
+
+Navigate to **Admin &rarr; Providers** to manage the provider list.
+
+<Accordion title="Enabling and disabling providers">
+Toggle the active state of any provider to include or exclude it from playback. Disabled providers are not tried, even if all enabled providers fail.
+</Accordion>
+
+<Accordion title="Reordering providers">
+Drag providers to change the order in which the player tries them. The player always works through the list from top to bottom.
+</Accordion>
+
+<Accordion title="Running a health check">
+Click **Run Health Check** to test which providers are currently reachable. The results are saved to the provider config and shown in the dashboard so you can quickly identify providers that are down. Health check results are stored with a `lastHealthCheckAt` timestamp.
+</Accordion>
+
+## API endpoints
+
+The provider management UI uses the following admin API endpoints. All routes require admin authentication.
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/admin/providers` | Retrieve the current provider configuration. If no config exists yet, the default configuration is seeded automatically. |
+| `PATCH` | `/api/admin/providers` | Save an updated provider configuration (enabled state, order, etc.). |
+| `POST` | `/api/admin/providers/health-check` | Run a health check against all configured providers and save results. |
+
+<Note>
+Provider configuration is stored in the `app_settings` table in Supabase under the key `streaming_providers_config`. Changes take effect immediately for new playback sessions.
+</Note>

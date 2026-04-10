@@ -1,0 +1,116 @@
+---
+title: "Managing plans and subscriptions for users"
+description: "VadedTV's plan system lets admins create feature tiers and assign them to users. FeatureGate controls UI access based on active subscription features."
+---
+
+VadedTV's plan system lets admins offer different tiers of features to different users. Plans are created and managed entirely by admins — there is no self-service checkout flow. Each plan carries a set of feature flags and optional cosmetic settings that are applied to the user's experience.
+
+## How plans work
+
+Each plan is stored in the `subscription_plans` table and has the following fields:
+
+| Field | Description |
+|---|---|
+| `slug` | A unique lowercase identifier for the plan (e.g. `free`, `plus`). |
+| `name` | The display name shown to users. |
+| `description` | Optional description of the plan. |
+| `features` | A JSON object of feature flags and limits. Keys are arbitrary and checked by `FeatureGate` components at render time. |
+| `cosmetic` | Optional JSON object for cosmetic settings such as a badge label or theme highlight colour. |
+| `is_active` | Whether the plan can be assigned to new users. Inactive plans cannot be assigned. |
+| `sort_order` | Display order in admin lists. |
+
+VadedTV seeds two baseline plans:
+
+<Accordion title="Free plan (slug: free)">
+The default plan for users without an explicit subscription.
+
+```json
+{
+  "features": {
+    "max_watchlist": 200,
+    "max_search_history": 10,
+    "priority_support": false,
+    "custom_theme": false,
+    "hide_ads": false
+  },
+  "cosmetic": {
+    "badge": "free",
+    "theme": {}
+  }
+}
+```
+</Accordion>
+
+<Accordion title="Plus plan (slug: plus)">
+An enhanced plan with higher limits and cosmetic customisations.
+
+```json
+{
+  "features": {
+    "max_watchlist": 1000,
+    "max_search_history": 50,
+    "priority_support": true,
+    "custom_theme": true,
+    "hide_ads": true
+  },
+  "cosmetic": {
+    "badge": "plus",
+    "theme": {
+      "highlight": "#00ff9d"
+    }
+  }
+}
+```
+</Accordion>
+
+## Feature gating in the UI
+
+Certain UI features are wrapped in a `FeatureGate` component. At render time, `FeatureGate` reads the current user's active subscription from the `useSubscriptionStore` and checks whether the required feature key is truthy in `subscription_plans.features`. If the user does not have the required feature, the gate renders its `fallback` instead of its children (typically an upgrade prompt or nothing).
+
+```jsx
+<FeatureGate feature="hide_ads" fallback={<AdBanner />}>
+  {/* Rendered only for users whose plan has hide_ads: true */}
+</FeatureGate>
+```
+
+The `useSubscriptionStore` also exposes `hasFeature(key)` and `getFeatureValue(key, fallback)` helpers for imperative feature checks outside of JSX.
+
+<Note>
+A user with no active subscription — or whose subscription has expired — is treated as having no features. The `FeatureGate` will always render the fallback for those users.
+</Note>
+
+## Assigning plans to users
+
+Admins manually assign plans to individual users. There is no automated billing or plan selection flow built in.
+
+1. Go to **Admin &rarr; Users** and select a user.
+2. Open the **Subscription** section.
+3. Choose an active plan and optionally set an expiry date and an internal assignment note.
+4. Save. The user's previous active subscription is automatically cancelled.
+
+To remove a subscription without replacing it, use the **Clear subscription** action. The user reverts to the Free defaults.
+
+<Tip>
+The `assigned_reason` field is for internal record-keeping only — it is never shown to the user.
+</Tip>
+
+## Per-user settings overrides
+
+In addition to plan-level features, admins can set individual settings overrides for specific users regardless of their plan. Overrides are stored in the `user_settings_overrides` table and are applied on top of the user's normal settings.
+
+The following keys are supported for overrides:
+
+| Key | Description |
+|---|---|
+| `theme_primary_color` | Overrides the user's primary UI colour. |
+| `theme_accent_color` | Overrides the user's accent UI colour. |
+| `animations_enabled` | Enables or disables UI animations for this user. |
+| `holiday_override` | Forces a specific holiday theme for this user. |
+| `logo_animations` | Enables or disables logo animation for this user. |
+| `banner_message` | Displays a custom banner message for this user. |
+
+Overrides with `is_forced: true` take precedence over the user's own preferences. Manage overrides from **Admin &rarr; Users &rarr; [user] &rarr; Settings Overrides**.
+
+<Note>
+For self-hosted deployments, plan enforcement is only as strong as the plans configured in the database. If no plans are created beyond the seeded defaults, all users will remain on the Free tier.
+</Note>

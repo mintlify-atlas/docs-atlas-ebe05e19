@@ -1,0 +1,64 @@
+---
+title: "Authentication options on VadedTV"
+description: "VadedTV supports email/password, Google OAuth, and anonymous username accounts. This page compares all three methods and their capabilities."
+---
+
+VadedTV gives you three ways to create an account and sign in. You can use an email address with a password, sign in with your Google account, or create a username-only account that requires no email at all. All three methods give you access to the same core features — My List, watch history, and chat.
+
+## Comparing sign-in methods
+
+<CardGroup cols={3}>
+  <Card title="Email / Password" icon="envelope">
+    Sign up with your name, email address, and a password. Standard account type with full password recovery support.
+  </Card>
+  <Card title="Google" icon="google">
+    Sign in with your existing Google account in one click. Your name and profile picture are imported automatically — no password needed.
+  </Card>
+  <Card title="Username account" icon="user">
+    Create an account with just a username and password — no email required. A unique discriminator tag is assigned to identify your account (e.g. `Shadow#4821`).
+  </Card>
+</CardGroup>
+
+## What each method supports
+
+| Feature | Email / Password | Google | Username account |
+|---|---|---|---|
+| My List sync | Yes | Yes | Yes |
+| Watch history | Yes | Yes | Yes |
+| Chat | Yes | Yes | Yes |
+| Password recovery | Yes | Via Google | Only if you link an email |
+| Profile picture from Google | No | Yes | No |
+| Link an email later | — | — | Yes |
+
+## Username accounts and discriminator tags
+
+Username accounts use a display name combined with a four-digit discriminator to form a unique tag, for example `Shadow#4821`. The display name itself is not required to be unique — multiple users can choose the name "Shadow" — but each one receives a different discriminator so accounts are always distinguishable.
+
+When signing in to a username account you can type just the display name (e.g. `Shadow`) or the full tag (e.g. `Shadow#4821`). If multiple accounts share the same display name and passwords differ, VadedTV will prompt you to enter the full tag to identify which account you mean.
+
+<Note>
+Your tag is shown immediately after you create a username account. Save it — you will need it if someone else shares your display name.
+</Note>
+
+## Linking an email to a username account
+
+If you created a username account and later want to enable password recovery, you can add an email address from your account settings.
+
+Go to **Settings** and look for the **Link Email** option. Enter your email address and confirm. Once linked, your account type upgrades and you can recover your password the same way as any email account.
+
+<Tip>
+Linking an email is optional but strongly recommended. Without one, there is no way to recover access to your account if you forget your password.
+</Tip>
+
+## Session and token behaviour
+
+VadedTV keeps you signed in automatically. Your session is maintained securely and refreshed in the background — you do not need to sign in again each time you visit, as long as your session is still active.
+
+<AccordionGroup>
+  <Accordion title="How does VadedTV keep me signed in?">
+    After you sign in, VadedTV stores your session in an HTTP-only cookie. This means your credentials are not accessible to JavaScript running in the page. Your session is refreshed automatically when it is close to expiring, so you stay signed in during normal use without any action required on your part.
+  </Accordion>
+  <Accordion title="What happens when I sign out?">
+    Signing out clears your session immediately. Your My List and watch history are preserved in your account and will be waiting when you sign back in.
+  </Accordion>
+</AccordionGroup>

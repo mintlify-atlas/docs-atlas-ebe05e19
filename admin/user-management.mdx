@@ -1,0 +1,148 @@
+---
+title: "View, edit, and manage user accounts as an admin"
+description: "VadedTV admins can search, inspect, edit, and delete accounts, toggle admin status, and manually assign subscription plans and per-user feature overrides."
+---
+
+The Users tab in the admin dashboard gives administrators full visibility into every registered account on VadedTV. From here you can search for users, inspect their profile and subscription status, update their details, grant or revoke admin privileges, manually assign or remove subscription plans, and apply per-user settings overrides.
+
+## Viewing users
+
+The Users tab displays a paginated list of all accounts, sorted by creation date (newest first). Each page shows up to 20 users.
+
+**Endpoint:** `GET /api/admin/users?page=<n>&search=<query>`
+
+Each row in the table shows:
+
+| Column | Details |
+|--------|---------|
+| User | Avatar, display name, and username |
+| Account Status | Whether the user holds admin privileges |
+| Plan | The user's active subscription plan name, or "No Plan" |
+| Last Active | Date of the user's most recent sign-in |
+
+Use the **Previous** and **Next** buttons to page through results. The total user count is shown in the toolbar.
+
+## Searching for a user
+
+Type a name or username into the search bar at the top of the Users tab. The list filters in real time and resets to page 1 on each new search query. The search is case-insensitive and matches partial strings against both the `name` and `username` fields.
+
+## User detail view
+
+Click through to a user's detail view (via `GET /api/admin/users/:id`) to see the full profile, including:
+
+- Display name and username
+- Email address (sourced from Supabase Auth)
+- Authentication type
+- Active subscription plan
+- Account creation date
+- Last sign-in date
+- Watch history count, list count, and search history count
+- Number of active settings overrides
+
+## Editing a user
+
+<Steps>
+  <Step title="Open the user record">
+    In the Users tab, locate the user you want to edit. Click their row to open the detail view.
+  </Step>
+  <Step title="Update fields">
+    Editable fields are `name`, `username`, `avatar`, and `is_admin`. Only these fields are accepted by the API — any other fields in the request body are silently ignored.
+  </Step>
+  <Step title="Save changes">
+    Submit the update. The server applies the changes via `PATCH /api/admin/users/:id` and returns the updated profile.
+  </Step>
+</Steps>
+
+<Note>
+  An admin cannot remove their own `is_admin` flag. Attempting to do so returns a `400` error: "Cannot remove your own admin status."
+</Note>
+
+## Toggling admin status
+
+In the Users table, each row has an account status button that shows either **Administrator** or **General User**. Clicking the button calls `PATCH /api/admin/users/:id` with `{ "is_admin": true/false }` to toggle the flag. The button is disabled for the currently signed-in admin to prevent self-demotion.
+
+## Deleting a user
+
+<Warning>
+  Deleting a user is permanent and irreversible. It removes the account from Supabase Auth and all associated profile data. This action cannot be undone.
+</Warning>
+
+<Steps>
+  <Step title="Hover over the user row">
+    The delete button (trash icon) becomes visible on hover in the rightmost column of the Users table.
+  </Step>
+  <Step title="Click the delete button">
+    A confirmation dialog appears with the message: "Permanently delete user `<name>`? This action is irreversible."
+  </Step>
+  <Step title="Confirm deletion">
+    Click **Confirm** to proceed. The server calls `DELETE /api/admin/users/:id`, which removes the user from Supabase Auth (and triggers cascading removal of their profile data).
+  </Step>
+</Steps>
+
+<Note>
+  An admin cannot delete their own account. The delete button is hidden for the currently signed-in user.
+</Note>
+
+## Assigning a subscription plan
+
+Plan assignment is done from the **Plans** tab, not the Users tab directly.
+
+<Steps>
+  <Step title="Go to the Plans tab">
+    Navigate to the Plans tab in the admin sidebar.
+  </Step>
+  <Step title="Select a user">
+    In the **User Plan Assignment** panel on the right side, choose a user from the dropdown. The dropdown lists all users by display name, email, or ID.
+  </Step>
+  <Step title="Select a plan">
+    Choose an active plan from the second dropdown. Only plans with `is_active: true` appear in the list.
+  </Step>
+  <Step title="Assign the plan">
+    Click **Assign**. A confirmation dialog appears showing the plan name and target user. Confirm to submit `POST /api/admin/users/:id/subscription` with `{ "plan_id": <id> }`.
+  </Step>
+</Steps>
+
+The current plan badge updates immediately after a successful assignment.
+
+<Tip>
+  After assigning a plan, the user's active plan is visible in both the Users table and the Plan Assignment panel.
+</Tip>
+
+## Clearing a subscription
+
+To remove a user's active plan without assigning a new one:
+
+<Steps>
+  <Step title="Select the user in the Plans tab">
+    Open the Plans tab and choose the user in the User Plan Assignment panel.
+  </Step>
+  <Step title="Click Clear">
+    Click the **Clear** button next to the Assign button. A confirmation dialog appears.
+  </Step>
+  <Step title="Confirm">
+    Confirm the action. The server submits `DELETE /api/admin/users/:id/subscription` and the user's plan is removed.
+  </Step>
+</Steps>
+
+## Settings overrides
+
+Settings overrides let you apply specific feature flags or visual settings to an individual user, overriding the platform-wide defaults. Overrides are managed in the **User Settings Overrides** panel in the Plans tab, below the plan assignment controls.
+
+The following keys can be overridden per user:
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `theme_primary_color` | color | Override the primary brand color for this user |
+| `theme_accent_color` | color | Override the accent color for this user |
+| `animations_enabled` | boolean | Enable or disable UI animations for this user |
+| `holiday_override` | text | Force a specific seasonal event theme for this user |
+| `logo_animations` | text | Override logo animation configuration for this user |
+| `banner_message` | text | Override the banner message shown to this user |
+
+To set or update an override, select the user and adjust the value for the relevant key. The change is saved immediately via `PATCH /api/admin/users/:id/settings-overrides` with `{ key, value, is_forced: true }`.
+
+To remove an override and restore the platform default for a key, click **Reset** next to that key. This calls `DELETE /api/admin/users/:id/settings-overrides/:key`.
+
+<Tip>
+  Overrides take precedence over both the user's own preferences and the global app settings. Use them sparingly — for example, to grant a premium visual experience to a specific account during a trial or for testing.
+</Tip>

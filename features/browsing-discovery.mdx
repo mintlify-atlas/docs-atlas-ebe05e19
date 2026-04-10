@@ -1,0 +1,85 @@
+---
+title: "Browsing and discovering movies and TV series"
+description: "VadedTV surfaces trending, top-rated, and personalized content from TMDB. Learn how to browse feeds, apply filters, and open detail modals."
+---
+
+VadedTV pulls its entire catalog from The Movie Database (TMDB), giving you access to millions of movies and TV series. Content is organized into curated rows on the home page and fully filterable grids on the Movies and Series pages, so you can move from casual browsing to focused discovery without leaving the app.
+
+## Home feed
+
+The home page loads a single aggregated feed made up of themed rows. Each row is lazy-loaded as you scroll, so initial page load stays fast.
+
+<CardGroup cols={2}>
+  <Card title="Trending Now" icon="fire">
+    Weekly trending titles across all media types, pulled from TMDB's trending endpoint.
+  </Card>
+  <Card title="Trending Movies" icon="clapperboard">
+    The week's most-watched movies ranked by TMDB popularity.
+  </Card>
+  <Card title="Trending Series" icon="tv">
+    The week's most-watched TV shows ranked by TMDB popularity.
+  </Card>
+  <Card title="Critically Acclaimed Movies" icon="star">
+    Top-rated movies with at least 100 votes, sorted by vote average.
+  </Card>
+  <Card title="Critically Acclaimed TV" icon="award">
+    Top-rated TV series with at least 100 votes, sorted by vote average.
+  </Card>
+  <Card title="Continue Watching" icon="play">
+    Titles you have started but not finished, pulled from your watch history.
+  </Card>
+</CardGroup>
+
+The home feed also includes rows by streaming service (Netflix Originals, HBO Gems, Disney+ Originals, Apple TV+ Hits, Amazon Originals), genre, mood, decade, and region. Clicking a row title navigates to the Movies or Series page with the matching filters pre-applied.
+
+## Movies and Series pages
+
+The **Movies** page (`/movies`) and **Series** page (`/series`) each display an infinite-scroll grid of poster cards. A sticky filter bar at the top of the page lets you narrow results without leaving the grid.
+
+<AccordionGroup>
+  <Accordion title="Sort order">
+    Choose from **Popularity** (default), **Top Rated**, **Trending**, **Newest first**, or **Oldest first**. Selecting Trending switches the underlying data source to TMDB's weekly trending feed rather than the discovery endpoint.
+  </Accordion>
+  <Accordion title="Genre">
+    Pick one or more genres from the dropdown. Movies supports genres such as Action, Drama, Horror, Thriller, and Science Fiction. Series supports TV-specific genres such as Action & Adventure, Reality, Soap, Talk, War & Politics, and Sci-Fi & Fantasy.
+  </Accordion>
+  <Accordion title="Rating (vote average)">
+    Filter by minimum TMDB vote average. Only titles with at least 100 votes are shown by default, which removes unrated or minimally reviewed content from results.
+  </Accordion>
+  <Accordion title="Release year">
+    Filter movies by primary release year, or series by first air date year.
+  </Accordion>
+  <Accordion title="Original language">
+    Narrow results to a specific original language, such as English, Korean, Hindi, Japanese, French, Spanish, or others.
+  </Accordion>
+  <Accordion title="Streaming service or network">
+    Filter by a streaming provider (Netflix, HBO, Apple TV+, Disney+, Amazon Prime, Hulu) or production company. When a streaming provider filter is active, the region defaults to US and all monetization types (subscription, free, ad-supported, rent, buy) are included automatically.
+  </Accordion>
+</AccordionGroup>
+
+Filters are reflected in the URL query string, so you can bookmark or share any filtered view. Changing any filter scrolls the page back to the top and resets pagination. Use the **Clear** button in the filter bar to reset all active filters at once.
+
+<Note>
+  On the Series page, selecting HBO as a company automatically remaps to the HBO network (ID 49) for better TV results. BBC similarly maps to BBC One (network ID 4).
+</Note>
+
+## Opening a detail modal
+
+Click any poster card anywhere in the app to open the detail modal. The modal fetches full metadata from TMDB, including:
+
+- **Overview** — full plot synopsis
+- **Cast** — top-billed actors with profile photos, opening a cast detail view on click
+- **Ratings** — TMDB vote average and total vote count
+- **Genres and runtime** (movies), or season count and episode count (series)
+- **Trailer** — plays an inline trailer when one is available on TMDB
+- **Similar titles** — a scrollable row of related content you can open directly from the modal
+
+For TV series, the modal includes an episode browser. Select a season from the dropdown to see its episode list, then click any episode to start watching.
+
+<Tip>
+  Clicking the title of any home feed row takes you directly to the Movies or Series page with that row's filters pre-applied. For example, clicking "Critically Acclaimed Movies" opens the Movies page sorted by vote average.
+</Tip>
+
+## Recommendations
+
+VadedTV generates personalized recommendations based on your watch history. When you have watched at least one title, a recommendations row appears in the home feed. The server derives suggestions from the genres and types of content in your history, supplemented by TMDB's per-item recommendation endpoint.

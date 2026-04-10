@@ -1,0 +1,126 @@
+---
+title: "Moderating live chat on VadedTV"
+description: "VadedTV admins can manage chat rooms, delete messages, send broadcast announcements, and toggle chat on or off from the admin panel."
+---
+
+The Live Chat tab in the admin dashboard gives administrators full control over VadedTV's real-time chat system. You can create and configure chat rooms, delete individual messages or clear entire rooms, send highlighted broadcast announcements to all connected users, and enable or disable chat platform-wide — all without leaving the admin panel.
+
+## Chat rooms
+
+<Accordion title="Viewing all rooms">
+  The Live Chat tab loads all rooms via `GET /api/chat/admin/rooms`, which returns every room including inactive ones. This is distinct from the public endpoint (`GET /api/chat/rooms`), which only returns rooms where `is_active` is `true`.
+
+  Each room entry shows its display name, slug, and type. Room types are displayed with a globe icon for `community` rooms and a lock icon for `support` rooms.
+</Accordion>
+
+<Accordion title="Creating a room">
+  <Steps>
+    <Step title="Open the room form">
+      Click **Add Room** at the bottom of the room list. The creation form expands inline.
+    </Step>
+    <Step title="Fill in the room details">
+      Complete the following fields:
+
+      | Field | Required | Notes |
+      |-------|----------|-------|
+      | Name | Yes | Display name shown to users |
+      | Slug | Yes | URL-safe identifier; automatically lowercased and stripped of non-alphanumeric characters (only `a-z`, `0-9`, and `-` are kept) |
+      | Description | No | Short description of the room's purpose |
+      | Type | Yes | One of `community` (public), `support`, or `custom` |
+    </Step>
+    <Step title="Save the room">
+      Click **Save**. The server creates the room via `POST /api/chat/admin/rooms` with `is_active: true` and records the creating admin's ID. The room list refreshes automatically.
+    </Step>
+  </Steps>
+
+  <Note>
+    The form value "Public" is normalized to the type `community` on the server before saving.
+  </Note>
+</Accordion>
+
+<Accordion title="Editing a room">
+  Click the edit (pencil) icon next to any room in the list. The same form used for creation pre-fills with the room's current values. You can update the name, slug, description, type, `is_active` status, and sort order.
+
+  Changes are submitted via `PATCH /api/chat/admin/rooms/:id`. Only the fields explicitly sent in the request body are updated.
+</Accordion>
+
+<Accordion title="Deleting a room">
+  Click the trash icon next to a room. A browser confirmation dialog appears: "Delete this room and all its messages?" Confirming sends `DELETE /api/chat/admin/rooms/:id`, which permanently removes the room and all messages associated with it from the database.
+
+  <Warning>
+    Deleting a room is irreversible. All messages inside the room are permanently deleted along with the room record.
+  </Warning>
+</Accordion>
+
+## Message moderation
+
+<Accordion title="Viewing message history">
+  Message history per room is available via `GET /api/chat/rooms/:roomId/messages`. Results are paginated (up to 100 per request) and sorted newest-first. Each message record includes the content, type, author profile, and emoji reactions.
+</Accordion>
+
+<Accordion title="Soft-deleting a message">
+  To remove a single message from view without permanently erasing it from the database, use the soft-delete action. This sets `is_deleted: true` and records `deleted_by` (the admin's user ID) on the message row.
+
+  **Endpoint:** `DELETE /api/chat/admin/messages/:id`
+
+  Soft-deleted messages are hidden from regular users but remain in the database. The deletion is attributed to the acting admin.
+</Accordion>
+
+<Accordion title="Clearing all messages in a room">
+  To permanently erase every message in a specific room, use the clear action available on each room row (the refresh icon in the room list).
+
+  **Endpoint:** `DELETE /api/chat/admin/rooms/:roomId/messages`
+
+  <Warning>
+    Clearing all messages in a room is irreversible. Every message in that room is hard-deleted from the database immediately. This action cannot be undone.
+  </Warning>
+
+  A separate **Clear All** button in the Danger Zone section at the bottom of the Live Chat tab will clear messages from every room simultaneously by iterating over all rooms and calling the clear endpoint for each one.
+</Accordion>
+
+## Broadcasts
+
+Broadcasts let you push a highlighted announcement banner to every connected user in real time via Socket.IO. Only one broadcast can be active at a time — sending a new one automatically deactivates any existing active broadcast.
+
+<Steps>
+  <Step title="Fill in the broadcast fields">
+    Complete the broadcast form in the **Global Broadcast** section:
+
+    | Field | Required | Notes |
+    |-------|----------|-------|
+    | Title | No | Short heading displayed on the banner |
+    | Content | Yes | Main body text of the announcement |
+    | Theme | Yes | Visual style: `info` (blue), `success` (green), `warning` (amber), or `danger` (red) |
+    | Action link URL | No | Optional URL the banner links to |
+    | Icon URL | No | Optional image URL displayed alongside the content |
+    | Duration (seconds) | Yes | How long the broadcast stays active. Set to `0` for a permanent broadcast that does not expire |
+    | Sound effect | Yes | Audio cue played on receipt: `notification`, `alert`, or `none` |
+  </Step>
+  <Step title="Send the broadcast">
+    Click **Send**. The server inserts a new row into `chat_broadcasts`, sets `is_active: true`, calculates an `expires_at` timestamp from the duration (or `null` if duration is `0`), and immediately emits a `broadcast_alert` Socket.IO event to all connected clients via `POST /api/chat/admin/broadcast`.
+  </Step>
+  <Step title="Clear the active broadcast">
+    To dismiss the current broadcast before it expires, click **Clear active broadcast**. This sends `DELETE /api/chat/admin/broadcast`, which sets `is_active: false` on all active broadcast rows and emits a `broadcast_cleared` Socket.IO event to connected clients.
+  </Step>
+</Steps>
+
+<Note>
+  The broadcast `content` field is passed through the platform's word filter before being stored. Profanity and blocked terms are filtered automatically.
+</Note>
+
+<Tip>
+  Use the `danger` theme for urgent announcements such as scheduled maintenance windows. Use `info` or `success` for routine notices like new feature launches.
+</Tip>
+
+## Chat settings
+
+To toggle live chat on or off for all users at once, use the **Global Control** toggle at the top of the Live Chat tab.
+
+- When **enabled**, the chat UI is visible and functional for all users.
+- When **disabled**, the chat widget is hidden from all users regardless of their individual settings.
+
+The toggle calls `PATCH /api/chat/admin/settings` with `{ "settings": { "chat_enabled": "true" | "false" } }`. The change is broadcast immediately to all connected Socket.IO clients via the `chat:settings_updated` event, so users see the effect without needing to reload the page.
+
+## Word filter
+
+All chat messages sent by users are passed through an automatic profanity filter (`filterMessage`) before being stored in the database. This applies to both regular user messages and admin broadcast content. No additional configuration is required — the filter runs automatically on every inbound message.

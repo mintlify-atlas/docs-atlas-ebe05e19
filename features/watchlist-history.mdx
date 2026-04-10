@@ -1,0 +1,76 @@
+---
+title: "Managing your watchlist and watch history"
+description: "Add movies and series to My List, track episodes you've watched, manage viewing history, and review saved searches in VadedTV."
+---
+
+VadedTV tracks the content you care about in three places: **My List** for titles you want to watch, **watch history** for everything you have already started or finished, and **search history** for queries you have made before. All three are persisted locally using IndexedDB and synced to Supabase when you are signed in.
+
+## My List
+
+My List is your personal watchlist. You can add any title from a poster card, a detail modal, or the watch page. Added items appear immediately on the `/my-list` page and a confirmation toast is shown.
+
+<Steps>
+  <Step title="Open any title">
+    Click a poster card on the Home, Movies, or Series page to open the detail modal, or browse the My List page directly.
+  </Step>
+  <Step title="Add to My List">
+    Click the **+ My List** button in the detail modal, or use the add icon on any poster card hover overlay. A success toast confirms the addition.
+  </Step>
+  <Step title="Remove from My List">
+    On the My List page, hover over a card and click the red **X** button. Alternatively, open the detail modal for any listed title and click **Remove from List**. A toast appears with an **Undo** option for a few seconds after removal.
+  </Step>
+  <Step title="Filter and search your list">
+    On the My List page, use the search input to filter by title. The filter tabs — **All**, **Movies**, and **TV Shows** — let you narrow the view by media type.
+  </Step>
+  <Step title="Clear your entire list">
+    Click the **Clear** button on the My List page. A confirmation modal asks you to confirm before permanently removing all items.
+  </Step>
+</Steps>
+
+<Note>
+  Your subscription plan determines the maximum number of items allowed in My List. If you reach the limit, a notification will prompt you to upgrade your plan to add more titles.
+</Note>
+
+## Watch history
+
+VadedTV automatically records every title you start watching. History entries appear in the **Continue Watching** row on the home page, making it easy to pick up where you left off.
+
+When you watch a title, the following is recorded:
+
+- The title and TMDB ID
+- Media type (movie or TV series)
+- For TV series: the season and episode number
+- Watch progress as a percentage (0–100%)
+- A timestamp for when the item was last watched
+
+Progress is updated while you watch via postMessage events from the player iframe. For providers that do not send progress events, a wall-clock heartbeat estimates progress every 30 seconds. Progress is also saved when you close the player or navigate away.
+
+<Tip>
+  The Continue Watching row always shows your most recently watched titles first. Tap any card to resume from the episode and approximate position you left off.
+</Tip>
+
+To remove a single title from your watch history, hover over it in the Continue Watching row and click the remove icon. A toast with an **Undo** option appears immediately after removal.
+
+## Search history
+
+Every search query you submit is saved automatically (up to 10 recent searches). Saved searches are displayed when you open the search bar and have not typed anything yet.
+
+- Click a saved search to run it again instantly.
+- Remove a single entry by clicking the **X** icon next to it.
+- Clear all saved searches with the **Clear All** button at the top of the history list.
+
+## Data storage and syncing
+
+| Store | Local storage | Cloud sync |
+|---|---|---|
+| My List | IndexedDB (`my-list-storage`) | Supabase `user_lists` table |
+| Watch history | IndexedDB (`watch-history-storage`) | Supabase `watch_history` table |
+| Search history | IndexedDB (`search-history-storage`) | Supabase `search_history` table |
+
+When you sign in, VadedTV merges your local data with the server. For watch history, whichever entry has the more recent `lastWatched` timestamp is kept. Watch history is capped at 100 entries. Syncing to Supabase is debounced (1.5-second delay) to avoid excessive network requests while you watch.
+
+<Note>
+  If you are not signed in, all data is stored only in your browser's IndexedDB. Clearing your browser data will erase your local watchlist and history. Sign in to keep your data safe across devices.
+</Note>
+
+To clear your watch history entirely, go to **Settings** and use the **Clear Watch History** option. This removes all entries locally and from the server if you are signed in.

@@ -1,0 +1,85 @@
+---
+title: "Search movies and series with filters and fuzzy matching"
+description: "VadedTV search combines live TMDB suggestions with server-side fuzzy matching. Filter results by genre, rating, year, and language on any results page."
+---
+
+VadedTV's search is available from the navbar on every page. It combines live suggestions from TMDB's multi-search endpoint with server-side fuzzy matching so you can find titles even with partial or misspelled queries. Your recent searches are saved locally and synced to the server so you can re-run them in one click.
+
+## Using the search bar
+
+<Steps>
+  <Step title="Open the search bar">
+    Click the search icon in the navbar on desktop, or tap the search icon in the bottom navigation bar on mobile. The search panel slides open below the navbar.
+  </Step>
+  <Step title="Type your query">
+    Start typing a movie or series title. Live suggestions appear as you type, with a 300 ms debounce to avoid excessive requests while you are still typing. Suggestions include both movies and TV series.
+  </Step>
+  <Step title="Select a result">
+    Click any suggestion to open that title's detail modal immediately. Click a result in the full results list to do the same.
+  </Step>
+  <Step title="Run a full search">
+    Press **Enter** or click the search icon to run a full search. The Movies or Series page updates to show all matching results with your query active.
+  </Step>
+</Steps>
+
+## Search suggestions
+
+As you type, the search bar fetches suggestions from TMDB's multi-search endpoint. Up to 10 suggestions are shown, filtered to movies and TV series only. Each suggestion displays the title, media type, and release year.
+
+Suggestions are shown in a horizontally scrollable chip row labeled **Suggested for you**. On desktop you can drag the row to scroll. The active suggestion (highlighted by keyboard navigation) is scrolled into view automatically.
+
+<Note>
+  Suggestions are cached on the server for a short time, so repeated searches for the same query are served instantly without an additional TMDB API call.
+</Note>
+
+## Trending searches
+
+When the search bar is open but empty, and you have no search history, the panel shows a **Top Searches** list. This list is populated from trending search data fetched from the server, based on popular titles across all users. Click any trending search to run it immediately.
+
+## Search history
+
+Every query you submit is automatically saved (up to 10 entries). When you open the search bar and have not typed anything, your most recent searches appear under **Recent Searches**.
+
+- Click any saved search to run it again instantly.
+- Click the **X** icon next to an entry to remove it.
+- Click **Clear All** at the top of the list to remove all saved searches.
+
+Search history is stored in IndexedDB locally and synced to the `search_history` table in Supabase when you are signed in, so your history is available across devices.
+
+## Filters
+
+On the Movies and Series pages, the sticky filter bar lets you combine a keyword search with structural filters:
+
+<AccordionGroup>
+  <Accordion title="Genre">
+    Filter results to a specific genre. Movie and series genre lists are fetched separately from TMDB (movies: `/genre/movie/list`, series: `/genre/tv/list`) and are cached indefinitely since they rarely change.
+  </Accordion>
+  <Accordion title="Rating (vote_average)">
+    Set a minimum TMDB vote average (0–10). Results with fewer than 100 votes are excluded by default to surface reliably rated content.
+  </Accordion>
+  <Accordion title="Year">
+    Filter movies by primary release year (`primary_release_year`). For series, this maps to the first air date year (`first_air_date_year`).
+  </Accordion>
+  <Accordion title="Language">
+    Filter by the original language of the title using ISO 639-1 language codes (for example, `en`, `ko`, `hi`, `ja`, `fr`, `es`).
+  </Accordion>
+</AccordionGroup>
+
+Filters and the search query are reflected in the URL as query parameters, so filtered views are bookmarkable and shareable.
+
+## Fuzzy matching and spell correction
+
+The server-side search pipeline (used for full search results on the Movies and Series pages, not the live suggestion dropdown) applies a multi-algorithm fuzzy matching approach to handle typos and partial queries:
+
+- **Damerau-Levenshtein distance** — tolerates single-character insertions, deletions, substitutions, and transpositions. Powered by the `fast-levenshtein` package.
+- **Jaro-Winkler similarity** — optimized for short strings and names with common prefixes.
+- **Trigram similarity** — n-gram overlap for longer titles where character-level edits do not capture the match.
+- **Phonetic matching** — finds titles that sound similar even when spelled differently.
+
+Results are ranked using a weighted scoring system: exact matches score highest (100 points), followed by normalized exact matches, prefix matches, fuzzy matches, and BM25 term-frequency scores. Popularity and recency bonuses are applied on top.
+
+Common abbreviations and synonyms are expanded automatically before matching. For example, `lotr` expands to `lord of the rings`, `got` to `game of thrones`, and `mcu` to `marvel cinematic universe`. Roman numerals in titles are normalized so searching `part 2` also matches `part ii`.
+
+<Note>
+  The minimum fuzzy match score is 0.65. Results below this threshold are not shown, which prevents unrelated titles from appearing due to coincidental character overlap.
+</Note>

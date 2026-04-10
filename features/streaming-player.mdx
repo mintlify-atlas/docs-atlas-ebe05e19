@@ -1,0 +1,108 @@
+---
+title: "VadedTV streaming player and source selection"
+description: "VadedTV embeds content from multiple streaming providers with automatic health checks and manual source switching from the watch page."
+---
+
+VadedTV streams content by embedding it from third-party providers inside a secure iframe. On page load the app benchmarks each provider's response time and automatically selects the fastest reachable source. You can switch providers at any time without leaving the player.
+
+## Accessing the watch page
+
+You can start watching a title in two ways:
+
+<Steps>
+  <Step title="From a detail modal">
+    Open any movie or series detail modal and click the **Watch Now** or **Play** button. The player opens as an overlay on the current page.
+  </Step>
+  <Step title="From the My List page">
+    Hover over a card in My List and click the play icon. The player opens as an inline overlay.
+  </Step>
+  <Step title="Direct URL">
+    Navigate to `/watch/:id?type=movie` for a movie or `/watch/:id?type=tv&season=1&episode=1` for a TV episode. The player takes up the full screen at this route.
+  </Step>
+</Steps>
+
+## Streaming providers
+
+VadedTV supports the following providers. The player benchmarks all of them on load and selects the one with the lowest measured latency.
+
+<AccordionGroup>
+  <Accordion title="VidLink (Cast-ready)">
+    Base URL: `https://vidlink.pro`. Supports movies and TV. Sends postMessage progress events, which enables accurate watch progress tracking and auto-next for TV episodes. Supports AirPlay stream extraction.
+  </Accordion>
+  <Accordion title="VidFast (Ad-free)">
+    Base URL: `https://vidfast.pro`. Ad-free provider supporting movies and TV at 1080p. Default fallback provider on mobile browsers.
+  </Accordion>
+  <Accordion title="Videasy (Fast)">
+    Base URL: `https://player.videasy.net`. Fast provider for movies and TV. Default provider when no user preference has been saved. Streams at up to 720p.
+  </Accordion>
+  <Accordion title="VidKing (Fast)">
+    Base URL: `https://www.vidking.net/embed`. Supports movies and TV at 1080p.
+  </Accordion>
+  <Accordion title="VidSrc.cc (Multi-source)">
+    Base URL: `https://vidsrc.cc/embed`. Multi-source provider supporting movies and TV at 1080p.
+  </Accordion>
+  <Accordion title="VidSrc (Standard)">
+    Base URL: `https://vidsrcme.ru/embed`. Standard provider supporting movies and TV at 1080p.
+  </Accordion>
+  <Accordion title="VidSrc Backup (Reliable)">
+    Base URL: `https://vidsrc.to/embed`. Reliable fallback provider supporting movies and TV at 1080p.
+  </Accordion>
+  <Accordion title="SuperEmbed (Multi-language)">
+    Routed through the VadedTV server proxy. Supports multiple languages and subtitle options for movies and TV at 1080p.
+  </Accordion>
+</AccordionGroup>
+
+<Note>
+  The list of active providers and the default provider can be changed by an admin from the Admin panel under **Settings → Streaming Providers**. Disabled providers do not appear in the source selector.
+</Note>
+
+## Provider health check and auto-selection
+
+When the player opens, VadedTV sends a `no-cors` request to each provider's base URL and measures response time. Results are cached for 5 minutes so repeated opens within the same session skip the benchmark. After the check:
+
+- The provider with the lowest latency is selected automatically.
+- If you have previously chosen a provider manually, your selection is restored instead of using the benchmark result.
+- Your preference is stored in `localStorage` under the key `preferredServiceManual`.
+
+The currently selected provider is shown in the **Server** dropdown at the top of the player. A green pulsing dot marks the fastest detected provider in the list.
+
+## Switching providers manually
+
+Click the **Server** dropdown in the player controls to open the provider list. Each entry shows the provider name, a short description, and an **Ad-free** badge where applicable. Click any provider to switch immediately — the iframe reloads with the new source.
+
+On desktop, you can also press a number key (1–8) to switch to the corresponding provider by its position in the list. Multi-digit input is supported with a 500 ms buffer, so pressing `1` then `2` within half a second switches to provider 12 if it exists.
+
+## TV episode navigation
+
+For TV series, the player shows season and episode controls. Use the episode selector to jump to any episode. When an episode ends, a 5-second auto-next countdown appears. If you do nothing, the next episode starts automatically. Click **Cancel** to stop the countdown.
+
+Auto-next is detected via:
+
+- postMessage `MEDIA_ENDED` / `VIDEO_ENDED` / `ended` events from the provider iframe.
+- A timestamp-based trigger when the current time is within 8 seconds of the total duration.
+- A percentage-based trigger when playback reaches 98% or more.
+- A runtime-based fallback timer for providers that send no progress events, calculated from TMDB episode runtime data.
+
+## Fullscreen and mobile playback
+
+On desktop, press **Escape** to close the player. Click the fullscreen icon in the player controls (or press the fullscreen button) to enter and exit fullscreen mode.
+
+On mobile, the player automatically enters fullscreen when you rotate the device to landscape. When fullscreen exits due to screen rotation, the player stays open and re-enters fullscreen once the orientation settles.
+
+<Warning>
+  Some streaming providers display their own ads before or during playback. An ad blocker browser extension can reduce interruptions, but may also interfere with certain providers' ability to load content. If a provider fails to load, try switching to a different source.
+</Warning>
+
+## Casting
+
+The player includes an experimental casting button in the toolbar. On Safari and iOS, this triggers AirPlay. On other platforms, the cast button opens a dialog with setup instructions. Casting requires the provider to expose a direct video stream URL, which is currently supported for VidLink.
+
+## Progress tracking
+
+Watch progress is saved automatically while you watch:
+
+- Every 30 seconds via a heartbeat (wall-clock estimate).
+- After each postMessage progress event from providers that support it (throttled to once per 30 seconds).
+- Immediately when you close the player or navigate away.
+
+Progress is stored as a decimal between 0 and 1 (for example, `0.45` means 45% complete) alongside the current season and episode for TV series.

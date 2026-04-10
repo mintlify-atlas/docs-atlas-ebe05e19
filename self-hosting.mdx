@@ -1,0 +1,185 @@
+---
+title: "Self-hosting VadedTV"
+description: "Deploy VadedTV on your own server using Docker or Render. Covers environment setup, MongoDB, Supabase, and TMDB API configuration."
+---
+
+VadedTV is a full-stack application composed of a React frontend built with Vite and an Express backend that connects to MongoDB. You can run the entire stack on your own infrastructure using Docker, Render, or a plain Node.js server. This guide covers everything you need to get a production instance running.
+
+## Prerequisites
+
+Before deploying, provision the following services:
+
+- **MongoDB Atlas** — a free cluster is sufficient to start. You will need the connection string for `MONGODB_URI`.
+- **Supabase project** — used for frontend authentication state and edge functions that proxy TMDB requests. Copy the project URL and anon key from your Supabase dashboard.
+- **TMDB API key** — register at [The Movie Database](https://www.themoviedb.org/) and generate a v3 API key. This is used by the backend to fetch movie and TV metadata.
+- **Node.js 20 or later** — required by both the frontend build and the backend server.
+
+## Deployment
+
+<Tabs>
+  <Tab title="Docker">
+    The repository ships a multi-stage `Dockerfile`. Stage one builds the React frontend using Vite; stage two produces a minimal production image that runs the Express server and serves the compiled frontend from `/app/dist`.
+
+    **1. Build the image**
+
+    Pass the Supabase frontend variables as Docker build arguments so Vite can embed them at build time:
+
+    ```bash
+    docker build \
+      --build-arg VITE_SUPABASE_URL=https://your-project.supabase.co \
+      --build-arg VITE_SUPABASE_ANON_KEY=your-anon-key \
+      -t vadedtv:latest .
+    ```
+
+    **2. Run the container**
+
+    Supply the backend runtime variables via `--env` flags or an env file:
+
+    ```bash
+    docker run -d \
+      --name vadedtv \
+      -p 3000:3000 \
+      -e NODE_ENV=production \
+      -e MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/vadedtv \
+      -e JWT_SECRET=your-jwt-secret \
+      -e TMDB_API_KEY=your-tmdb-api-key \
+      -e FRONTEND_URL=https://your-domain.com \
+      -e SESSION_SECRET=your-session-secret \
+      -e GOOGLE_CLIENT_ID=your-google-client-id \
+      -e GOOGLE_CLIENT_SECRET=your-google-client-secret \
+      vadedtv:latest
+    ```
+
+    The container runs as a non-root user (`appuser`) and uses `dumb-init` for proper signal handling. The server listens on port `3000` by default; override with the `PORT` environment variable if needed.
+
+    <Note>
+      The `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` values must be provided at **build time** as Docker build arguments, not at container runtime. They are compiled into the frontend bundle by Vite.
+    </Note>
+  </Tab>
+
+  <Tab title="Render">
+    The repository includes a `render-build.sh` script that Render runs automatically as the build command.
+
+    **1. Create a new Web Service on Render**
+
+    Point Render at your repository and set the following:
+
+    | Setting | Value |
+    |---|---|
+    | Build Command | `./render-build.sh` |
+    | Start Command | `npm start` |
+    | Environment | `Node` |
+    | Node version | `20` |
+
+    The build script installs root dependencies, runs `vite build` to compile the frontend, then installs server production dependencies:
+
+    ```bash
+    # render-build.sh
+    npm install
+    npm run build
+    cd server && npm install
+    ```
+
+    **2. Set environment variables in the Render dashboard**
+
+    Add all required and optional variables listed in the [Environment variables](#environment-variables) section below. Frontend variables (`VITE_*`) are baked into the static bundle during the build step, so they must be set before the first deployment.
+
+    **3. Deploy**
+
+    Push to your connected branch. Render will run `render-build.sh` and start the server with `npm start` (which runs `node server/index.js`).
+  </Tab>
+
+  <Tab title="Manual (Node)">
+    <Steps>
+      <Step title="Install dependencies">
+        Install root dependencies (frontend tooling) and then server dependencies:
+
+        ```bash
+        npm install
+        cd server && npm install
+        ```
+      </Step>
+
+      <Step title="Set environment variables">
+        Create a `.env` file inside the `server/` directory (or at the project root) with all required variables. See the [Environment variables](#environment-variables) section below.
+      </Step>
+
+      <Step title="Build the frontend">
+        Run the Vite build from the project root. The compiled assets are output to `dist/`:
+
+        ```bash
+        npm run build
+        ```
+      </Step>
+
+      <Step title="Start the server">
+        Start the Express server. In production it serves the compiled frontend from `../dist` relative to `server/index.js`:
+
+        ```bash
+        npm start
+        ```
+
+        This runs `node server/index.js`. The server listens on `PORT` (default `3000`).
+
+        For development, run both the Vite dev server and the backend together:
+
+        ```bash
+        npm run dev:all
+        ```
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+## Environment variables
+
+### Backend (server)
+
+These variables are read at runtime by `server/index.js`. Place them in `server/.env` or pass them as environment variables in your hosting platform.
+
+| Variable | Required | Description |
+|---|---|---|
+| `MONGODB_URI` | Yes | MongoDB connection string, e.g. `mongodb+srv://user:pass@cluster.mongodb.net/vadedtv` |
+| `JWT_SECRET` | Yes | Secret key used to sign and verify JWT tokens. Use a long, random string. |
+| `TMDB_API_KEY` | Recommended | TMDB v3 API key. Used to fetch movie/TV metadata and power Open Graph previews. If omitted, the server falls back to proxying requests through the Supabase edge function. |
+| `FRONTEND_URL` | Yes | The public URL of your frontend (e.g. `https://your-domain.com`). Used for CORS allow-list and OAuth redirects. |
+| `SESSION_SECRET` | Yes | Secret used to sign the Express session cookie. Use a long, random string. |
+| `GOOGLE_CLIENT_ID` | Optional | Google OAuth 2.0 client ID. Required only if you want to enable "Sign in with Google". |
+| `GOOGLE_CLIENT_SECRET` | Optional | Google OAuth 2.0 client secret. Required alongside `GOOGLE_CLIENT_ID`. |
+| `PORT` | Optional | Port the server listens on. Defaults to `3000`. |
+| `NODE_ENV` | Optional | Set to `production` to enable static file serving, secure cookies, and other production behaviours. |
+
+### Frontend (Vite build-time)
+
+These variables are embedded into the frontend bundle at build time by Vite. They must be available before running `npm run build` or `docker build`.
+
+| Variable | Required | Description |
+|---|---|---|
+| `VITE_SUPABASE_URL` | Yes | Your Supabase project URL, e.g. `https://your-project.supabase.co` |
+| `VITE_SUPABASE_ANON_KEY` | Yes | Your Supabase project anon (public) key |
+| `VITE_APP_URL` | Optional | Public URL of the app. Used for APK download links. Falls back to `window.location.origin` if not set. |
+
+<Warning>
+  Never commit your `.env` file to version control. Add it to `.gitignore`. Exposing `JWT_SECRET`, `SESSION_SECRET`, or your MongoDB credentials will allow anyone to forge authentication tokens and access your database.
+</Warning>
+
+## Health check endpoints
+
+The backend exposes three endpoints you can use with load balancers, uptime monitors, or container orchestrators:
+
+| Endpoint | Description |
+|---|---|
+| `GET /health` | Returns server status and MongoDB connection state as JSON. |
+| `GET /ping` | Lightweight liveness probe. Returns `pong` with no database involvement. |
+| `GET /api/health` | Returns server status and `NODE_ENV`. Suitable for Dokploy and similar platforms. |
+
+Example response from `GET /health`:
+
+```json
+{
+  "success": true,
+  "message": "Server is running",
+  "database": "connected",
+  "timestamp": "2026-04-10T00:00:00.000Z"
+}
+```

@@ -1,0 +1,55 @@
+---
+title: "Admin dashboard: stats, users, providers, and chat"
+description: "The VadedTV admin dashboard gives administrators one interface for platform stats, user management, streaming providers, plans, and live chat controls."
+---
+
+The admin dashboard is the central control panel for VadedTV platform administrators. It provides access to platform-wide statistics, user management, streaming provider configuration, subscription plans, live chat moderation, and application settings — all from a single interface.
+
+## Accessing the dashboard
+
+Navigate to `/admin` in your browser while logged in with an account that has the `is_admin` flag enabled in Supabase. Non-admin users are denied access with a `403 Forbidden` response. The admin panel loads its own authenticated session context separate from the regular user interface.
+
+<Note>
+  Admin access is controlled by the `is_admin` column in the `profiles` table in Supabase. This flag must be set directly in Supabase (or by another admin via the Users tab) — there is no self-service admin elevation.
+</Note>
+
+## Dashboard sections
+
+<CardGroup cols={2}>
+  <Card title="Stats" icon="chart-line">
+    The Overview tab displays four key platform metrics fetched from `GET /api/admin/stats`:
+
+    - **Total Users** — total registered profile count
+    - **New (7d)** — new accounts created in the last seven days
+    - **Feedback** — total feedback submissions across all categories
+    - **Watch Events** — total rows in the watch history table
+
+    The tab also shows the five most recent feedback submissions with their category and type badges.
+  </Card>
+  <Card title="Users" icon="users">
+    Browse all user accounts in a paginated table (20 per page). Search by name or username, toggle admin status, and delete accounts. Selecting a user exposes their subscription plan and last sign-in date. User data is fetched from `GET /api/admin/users`.
+  </Card>
+  <Card title="Providers" icon="plug">
+    Manage the streaming source configuration used across the platform. Admins can add, reorder, enable or disable providers, set a default provider, and run a live health check. Configuration is saved via `PATCH /api/admin/providers`.
+  </Card>
+  <Card title="Plans" icon="crown">
+    Create and manage subscription tiers. Each plan has a slug, display name, description, a JSON `features` object, and a JSON `cosmetic` object. Plans can be assigned to individual users directly from this tab.
+  </Card>
+  <Card title="Live Chat" icon="message-circle">
+    Manage chat rooms (create, edit, delete), moderate messages (soft-delete individual messages or clear a full room), send global broadcast announcements to all connected users in real time, and toggle chat on or off platform-wide.
+  </Card>
+  <Card title="Settings" icon="sliders">
+    Configure app-wide settings stored in the `app_settings` table: theme primary and accent colors, interface animations toggle, seasonal event overrides, banner message, logo animation behavior, and version management. Changes are applied immediately via `PATCH /api/admin/settings`.
+  </Card>
+</CardGroup>
+
+## Granting admin access
+
+Admin access is controlled by the `is_admin` column in the `profiles` table in Supabase. To grant admin access to a user:
+
+- **From the admin panel**: open the Users tab, find the user, and toggle their account status to **Administrator**.
+- **From Supabase**: set `is_admin = true` on the relevant row in the `profiles` table directly in the Supabase dashboard.
+
+<Note>
+  Only existing admins can grant admin access to other users via the admin panel. For the initial admin account, set `is_admin` directly in Supabase.
+</Note>

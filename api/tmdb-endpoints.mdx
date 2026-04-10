@@ -1,0 +1,220 @@
+---
+title: "TMDB and content endpoints in VadedTV"
+description: "VadedTV proxies TMDB requests and adds aggregated feeds, multi-search with fuzzy matching, recommendations, and modal data endpoints."
+---
+
+VadedTV wraps the TMDB API with a set of aggregated, cached endpoints for feeds, search, and recommendations. The proxy layer caches responses in-process and sets the `X-Cache: HIT` response header when data is served from cache. All endpoints are under `/api/tmdb`.
+
+---
+
+## Feed endpoints
+
+### `GET /api/tmdb/feed/home`
+
+Returns an aggregated home feed containing trending and top-rated content. When called with a valid auth token the server tailors a personalized recommendations section based on the user's watch history.
+
+**Authentication:** optional. Pass the cookie or `Authorization` header to receive personalized content.
+
+```bash
+# Guest feed:
+curl -s https://yoursite.com/api/tmdb/feed/home
+
+# Personalized feed:
+curl -s -b cookies.txt https://yoursite.com/api/tmdb/feed/home
+```
+
+---
+
+### `GET /api/tmdb/feed/movies`
+
+Returns an aggregated movies feed (e.g. trending, popular, and top-rated movies).
+
+```bash
+curl -s https://yoursite.com/api/tmdb/feed/movies
+```
+
+---
+
+### `GET /api/tmdb/feed/series`
+
+Returns an aggregated series feed (e.g. trending, popular, and top-rated TV shows).
+
+```bash
+curl -s https://yoursite.com/api/tmdb/feed/series
+```
+
+---
+
+## Search endpoints
+
+### `GET /api/tmdb/search/multi`
+
+Enhanced multi-search with fuzzy matching, optional filters, and pagination. Searches across movies, TV shows, and people.
+
+**Query parameters**
+
+<ParamField query="query" type="string" required>
+  Search term. Fuzzy matching is applied.
+</ParamField>
+
+<ParamField query="page" type="integer">
+  Results page number (TMDB standard, starts at 1).
+</ParamField>
+
+<ParamField query="type" type="string">
+  Filter by media type. One of `movie`, `tv`, or `all` (default).
+</ParamField>
+
+<ParamField query="genre" type="string">
+  Filter by TMDB genre ID.
+</ParamField>
+
+<ParamField query="year" type="integer">
+  Filter by release or air year.
+</ParamField>
+
+<ParamField query="language" type="string">
+  Filter by original language (ISO 639-1, e.g. `en`, `fr`).
+</ParamField>
+
+<ParamField query="vote_average.gte" type="number">
+  Minimum rating filter (0–10).
+</ParamField>
+
+<ParamField query="vote_average.lte" type="number">
+  Maximum rating filter (0–10).
+</ParamField>
+
+```bash
+# Basic search:
+curl -s "https://yoursite.com/api/tmdb/search/multi?query=inception"
+
+# Filtered search — English movies rated 7 or above:
+curl -s "https://yoursite.com/api/tmdb/search/multi?query=thriller&type=movie&language=en&vote_average.gte=7"
+```
+
+<Note>
+  The server configures Express's query parser to use Node's native `querystring` module, which preserves dotted parameter names like `vote_average.gte` as flat keys rather than nested objects. Pass them as standard query string parameters.
+</Note>
+
+---
+
+### `GET /api/tmdb/search/suggestions`
+
+Returns live search suggestions for a partial query, intended for typeahead/autocomplete UIs.
+
+<ParamField query="query" type="string" required>
+  Partial or full search term.
+</ParamField>
+
+```bash
+curl -s "https://yoursite.com/api/tmdb/search/suggestions?query=inc"
+```
+
+---
+
+### `GET /api/tmdb/search/trending`
+
+Returns current trending search terms.
+
+```bash
+curl -s https://yoursite.com/api/tmdb/search/trending
+```
+
+---
+
+## Modal data endpoint
+
+### `GET /api/tmdb/modal/:type/:id`
+
+Returns a single aggregated payload combining title details, cast, videos (trailers/teasers), similar titles, and season data for a given piece of content. This is the primary endpoint used by the VadedTV detail modal.
+
+**Path parameters**
+
+<ParamField path="type" type="string" required>
+  Media type. Must be `movie` or `tv`.
+</ParamField>
+
+<ParamField path="id" type="integer" required>
+  TMDB numeric ID.
+</ParamField>
+
+**Query parameters**
+
+<ParamField query="season" type="integer">
+  For `tv` titles, include season-specific data (cast, episodes) for this season number.
+</ParamField>
+
+```bash
+# Movie modal data:
+curl -s https://yoursite.com/api/tmdb/modal/movie/550
+
+# TV show modal data with season 2:
+curl -s "https://yoursite.com/api/tmdb/modal/tv/1396?season=2"
+```
+
+Responses are cached. The `X-Cache` header is set to `HIT` or `MISS` accordingly.
+
+---
+
+## Recommendation endpoints
+
+### `GET /api/tmdb/recommendations`
+
+Returns personalized recommendations. When called with a valid auth token the server uses the user's watch history to generate the recommendations. When called as a guest, general trending content is returned.
+
+**Authentication:** optional.
+
+```bash
+# Personalized:
+curl -s -b cookies.txt https://yoursite.com/api/tmdb/recommendations
+
+# Guest (trending-based):
+curl -s https://yoursite.com/api/tmdb/recommendations
+```
+
+---
+
+### `GET /api/tmdb/recommendations/:type/:id`
+
+Returns recommendations for a specific title, used when the detail modal is open. Recommendations are sourced from TMDB's similar/recommendations endpoints for the given item.
+
+**Authentication:** optional (used for user-context enrichment when available).
+
+**Path parameters**
+
+<ParamField path="type" type="string" required>
+  Media type. Must be `movie` or `tv`.
+</ParamField>
+
+<ParamField path="id" type="integer" required>
+  TMDB numeric ID.
+</ParamField>
+
+```bash
+curl -s https://yoursite.com/api/tmdb/recommendations/movie/550
+```
+
+---
+
+## TMDB proxy passthrough
+
+### `GET /api/tmdb/*`
+
+All `GET` requests that do not match a named route above are proxied directly to the TMDB API. The path segment after `/api/tmdb` is forwarded as the TMDB endpoint, and all query parameters are passed through unchanged.
+
+This allows the frontend to reach any TMDB endpoint without exposing the API key to the browser.
+
+```bash
+# Equivalent to TMDB GET /3/movie/popular:
+curl -s "https://yoursite.com/api/tmdb/movie/popular?page=1"
+
+# Equivalent to TMDB GET /3/tv/top_rated:
+curl -s "https://yoursite.com/api/tmdb/tv/top_rated"
+```
+
+Responses are cached in-process. The `X-Cache` header indicates whether the response was served from cache.
+
+<Note>
+  Only `GET` requests are proxied. Write operations to TMDB (if needed) must be performed directly against the TMDB API from your own server.
+</Note>

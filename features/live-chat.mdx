@@ -1,0 +1,96 @@
+---
+title: "Real-time community chat on VadedTV"
+description: "VadedTV's live chat lets viewers discuss movies and shows in real-time rooms. Send messages, react with emoji, and receive admin broadcasts instantly."
+---
+
+VadedTV includes a live community chat that is accessible from any page in the app. Messages are delivered in real time using Socket.IO, with persistent message history stored in Supabase. You can discuss what you are watching, ask for support, or react to what others are saying — all without leaving the site.
+
+## Opening the chat
+
+Click the **Chat** icon in the navigation bar or bottom tab bar to open the chat panel. The panel appears as a floating overlay in the bottom-right corner of the screen (360×520 px on desktop, full-screen on mobile).
+
+The panel has three main areas:
+
+- **Header** — shows the active room name, online user count, and minimize/close controls.
+- **Message list** — scrollable history of messages in the current room, newest at the bottom.
+- **Input bar** — where you type and send messages.
+
+You can minimize the chat panel by clicking the minimize button in the header. An unread badge appears on the chat icon when new messages arrive while the panel is minimized or closed.
+
+## Chat rooms
+
+Rooms are fetched from the server when the chat panel opens. Each room has a **name**, **slug**, **description**, and **type**. The three supported room types are:
+
+<AccordionGroup>
+  <Accordion title="Community">
+    General discussion open to all users. This is the default room type and is where most conversations happen. At least one community room is always active.
+  </Accordion>
+  <Accordion title="Support">
+    A dedicated room for questions about the platform, technical issues, and account help.
+  </Accordion>
+  <Accordion title="Custom">
+    Purpose-specific rooms created by admins. Examples include topic-specific discussion rooms or event rooms. Custom rooms appear in the room list alongside community and support rooms.
+  </Accordion>
+</AccordionGroup>
+
+Click a room name in the header to switch rooms. Switching automatically joins the new room via Socket.IO and loads its message history.
+
+## Sending messages
+
+Type your message in the input bar and press **Enter** or click the send button (green circle with arrow icon) to send. Messages are capped at 500 characters. A character counter appears when you are within 20% of the limit.
+
+You can also:
+
+- **Send an emoji** — click the smiley face icon to open the emoji picker and insert an emoji into your message.
+- **Send an image** — click the image icon and select a file (images only, maximum 5 MB). The image is uploaded to Supabase Storage and sent as a message.
+
+<Note>
+  You must be signed in to send messages. If you are not signed in, the input bar shows a "Sign in to chat" prompt instead.
+</Note>
+
+Pressing **Shift + Enter** inserts a line break rather than sending the message.
+
+## Emoji reactions
+
+You can react to any message with an emoji. Hover over a message to reveal the reaction button, then pick an emoji from the picker. Reactions are displayed as a count below the message. Clicking a reaction you have already added toggles it off.
+
+## Broadcast announcements
+
+Admins can send a broadcast — a highlighted banner message displayed at the top of the chat panel to all connected users. Broadcasts appear above the message list and remain visible until they expire or an admin clears them.
+
+Broadcasts support a title, content text, a theme (info, warning, or similar), an optional action link, an optional icon, and a duration in seconds. After the duration elapses the broadcast is automatically dismissed.
+
+## Chat moderation
+
+<AccordionGroup>
+  <Accordion title="Word filter">
+    All messages are passed through a server-side profanity filter before being stored. The filter matches whole words and handles common evasion techniques such as repeated characters (for example, "fuuuck") and optional spaces between letters. Matched words are replaced with asterisks.
+  </Accordion>
+  <Accordion title="Message deletion">
+    Admins can soft-delete any message. Deleted messages are marked with `is_deleted: true` in the database and are replaced with a "message deleted" placeholder in the chat UI. Deletion is broadcast in real time to all connected users in the room.
+  </Accordion>
+  <Accordion title="Clearing a room">
+    Admins can permanently delete all messages in a room from the Admin panel. This action cannot be undone.
+  </Accordion>
+  <Accordion title="Enabling or disabling chat">
+    Admins can enable or disable the entire chat feature from Settings. When disabled, the chat panel shows a "chat unavailable" state. The setting change is broadcast to all connected clients in real time via Socket.IO.
+  </Accordion>
+</AccordionGroup>
+
+## Real-time delivery
+
+The chat uses Socket.IO for real-time delivery. When you open the chat panel, the app connects to the Socket.IO server, joins the active room, and subscribes to the following events:
+
+- `chat:message` — new message in the current room
+- `chat:reaction` — emoji reaction added or removed
+- `chat:delete` — message soft-deleted by an admin
+- `chat:presence` — online user count update for the current room
+- `broadcast_alert` — new admin broadcast
+- `broadcast_cleared` — active broadcast dismissed
+- `chat:settings_updated` — chat enabled/disabled toggle
+
+<Note>
+  Message history is paginated. The most recent 50 messages are loaded when you join a room. Scroll to the top of the message list to load older messages.
+</Note>
+
+A typing indicator appears below the message list when another user is actively typing in the same room. The indicator clears automatically after 3 seconds of inactivity.

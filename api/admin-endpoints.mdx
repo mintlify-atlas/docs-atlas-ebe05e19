@@ -1,0 +1,442 @@
+---
+title: "Admin API endpoints — users, stats, and settings"
+description: "Admin-only REST endpoints for stats, user management, streaming providers, plans, subscriptions, and chat moderation. Requires admin auth."
+---
+
+All `/api/admin/*` endpoints (and the `/api/chat/admin/*` endpoints) require admin authentication. The server validates the request against Supabase using the `is_admin` flag on the user's profile. Requests without a valid admin session receive HTTP `401` or `403`.
+
+<Warning>
+  Admin endpoints can permanently delete users, plans, subscriptions, messages, and rooms. All destructive operations are irreversible. Use them with care, especially in production.
+</Warning>
+
+---
+
+## Stats
+
+### `GET /api/admin/stats`
+
+Returns a platform-wide summary: user counts, feedback counts, and other aggregate stats.
+
+```bash
+curl -s -b cookies.txt https://yoursite.com/api/admin/stats
+```
+
+---
+
+## User management
+
+### `GET /api/admin/users`
+
+Returns a list of all users.
+
+```bash
+curl -s -b cookies.txt https://yoursite.com/api/admin/users
+```
+
+---
+
+### `GET /api/admin/users/:id`
+
+Returns the full record for a single user by their ID.
+
+<ParamField path="id" type="string" required>
+  User ID.
+</ParamField>
+
+```bash
+curl -s -b cookies.txt https://yoursite.com/api/admin/users/<id>
+```
+
+---
+
+### `PATCH /api/admin/users/:id`
+
+Updates fields on a user's account (e.g. name, avatar, or admin-controlled metadata).
+
+<ParamField path="id" type="string" required>
+  User ID.
+</ParamField>
+
+```bash
+curl -s -b cookies.txt -X PATCH https://yoursite.com/api/admin/users/<id> \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Updated Name"}'
+```
+
+---
+
+### `DELETE /api/admin/users/:id`
+
+Permanently deletes a user account.
+
+<ParamField path="id" type="string" required>
+  User ID.
+</ParamField>
+
+```bash
+curl -s -b cookies.txt -X DELETE https://yoursite.com/api/admin/users/<id>
+```
+
+---
+
+## Feedback
+
+### `GET /api/admin/feedback`
+
+Returns all user-submitted feedback entries.
+
+```bash
+curl -s -b cookies.txt https://yoursite.com/api/admin/feedback
+```
+
+---
+
+### `DELETE /api/admin/feedback/:id`
+
+Deletes a specific feedback entry.
+
+<ParamField path="id" type="string" required>
+  Feedback entry ID.
+</ParamField>
+
+```bash
+curl -s -b cookies.txt -X DELETE https://yoursite.com/api/admin/feedback/<id>
+```
+
+---
+
+## App settings
+
+### `GET /api/admin/settings`
+
+Returns the current application settings object.
+
+```bash
+curl -s -b cookies.txt https://yoursite.com/api/admin/settings
+```
+
+---
+
+### `PATCH /api/admin/settings`
+
+Updates one or more application settings.
+
+```bash
+curl -s -b cookies.txt -X PATCH https://yoursite.com/api/admin/settings \
+  -H "Content-Type: application/json" \
+  -d '{"maintenance_mode": "false"}'
+```
+
+---
+
+## Streaming providers
+
+### `GET /api/admin/providers`
+
+Returns the current streaming provider configuration.
+
+```bash
+curl -s -b cookies.txt https://yoursite.com/api/admin/providers
+```
+
+---
+
+### `PATCH /api/admin/providers`
+
+Updates the streaming provider configuration (e.g. enable/disable providers, update URLs).
+
+```bash
+curl -s -b cookies.txt -X PATCH https://yoursite.com/api/admin/providers \
+  -H "Content-Type: application/json" \
+  -d '{"vidlink": {"enabled": true}}'
+```
+
+---
+
+### `POST /api/admin/providers/health-check`
+
+Triggers a health check against all configured streaming providers and returns their availability status.
+
+```bash
+curl -s -b cookies.txt -X POST https://yoursite.com/api/admin/providers/health-check
+```
+
+---
+
+## Versions
+
+### `GET /api/admin/versions`
+
+Returns all app version records (e.g. for managing update announcements or changelogs).
+
+```bash
+curl -s -b cookies.txt https://yoursite.com/api/admin/versions
+```
+
+---
+
+### `PATCH /api/admin/versions/:id`
+
+Updates a version record.
+
+<ParamField path="id" type="string" required>
+  Version record ID.
+</ParamField>
+
+```bash
+curl -s -b cookies.txt -X PATCH https://yoursite.com/api/admin/versions/<id> \
+  -H "Content-Type: application/json" \
+  -d '{"is_current": true}'
+```
+
+---
+
+## Subscription plans
+
+### `GET /api/admin/plans`
+
+Returns all subscription plan definitions.
+
+```bash
+curl -s -b cookies.txt https://yoursite.com/api/admin/plans
+```
+
+---
+
+### `POST /api/admin/plans`
+
+Creates a new subscription plan.
+
+```bash
+curl -s -b cookies.txt -X POST https://yoursite.com/api/admin/plans \
+  -H "Content-Type: application/json" \
+  -d '{"slug": "pro", "name": "Pro", "features": {"max_watchlist": 1000, "hide_ads": true}, "is_active": true}'
+```
+
+---
+
+### `PATCH /api/admin/plans/:id`
+
+Updates an existing plan.
+
+<ParamField path="id" type="string" required>
+  Plan ID.
+</ParamField>
+
+```bash
+curl -s -b cookies.txt -X PATCH https://yoursite.com/api/admin/plans/<id> \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Pro Plus", "features": {"max_watchlist": 2000, "hide_ads": true, "custom_theme": true}}'
+```
+
+---
+
+### `DELETE /api/admin/plans/:id`
+
+Deletes a plan. This does not automatically clear existing user subscriptions tied to the plan.
+
+<ParamField path="id" type="string" required>
+  Plan ID.
+</ParamField>
+
+```bash
+curl -s -b cookies.txt -X DELETE https://yoursite.com/api/admin/plans/<id>
+```
+
+---
+
+## User subscriptions
+
+### `GET /api/admin/users/:id/subscription`
+
+Returns the active subscription for a user.
+
+<ParamField path="id" type="string" required>
+  User ID.
+</ParamField>
+
+```bash
+curl -s -b cookies.txt https://yoursite.com/api/admin/users/<id>/subscription
+```
+
+---
+
+### `POST /api/admin/users/:id/subscription`
+
+Assigns a subscription plan to a user.
+
+<ParamField path="id" type="string" required>
+  User ID.
+</ParamField>
+
+```bash
+curl -s -b cookies.txt -X POST https://yoursite.com/api/admin/users/<id>/subscription \
+  -H "Content-Type: application/json" \
+  -d '{"plan_id": "<plan_id>"}'
+```
+
+---
+
+### `DELETE /api/admin/users/:id/subscription`
+
+Clears the subscription for a user, reverting them to the free tier.
+
+<ParamField path="id" type="string" required>
+  User ID.
+</ParamField>
+
+```bash
+curl -s -b cookies.txt -X DELETE https://yoursite.com/api/admin/users/<id>/subscription
+```
+
+---
+
+## User settings overrides
+
+Per-user settings overrides let admins override specific settings keys for individual users without touching the global app settings.
+
+### `GET /api/admin/users/:id/settings-overrides`
+
+Returns all settings overrides for a user.
+
+<ParamField path="id" type="string" required>
+  User ID.
+</ParamField>
+
+```bash
+curl -s -b cookies.txt https://yoursite.com/api/admin/users/<id>/settings-overrides
+```
+
+---
+
+### `PATCH /api/admin/users/:id/settings-overrides`
+
+Upserts (creates or updates) a settings override for a user.
+
+<ParamField path="id" type="string" required>
+  User ID.
+</ParamField>
+
+```bash
+curl -s -b cookies.txt -X PATCH https://yoursite.com/api/admin/users/<id>/settings-overrides \
+  -H "Content-Type: application/json" \
+  -d '{"key": "theme_primary_color", "value": "#d14a4a", "is_forced": true}'
+```
+
+---
+
+### `DELETE /api/admin/users/:id/settings-overrides/:key`
+
+Removes a single settings override key for a user.
+
+<ParamField path="id" type="string" required>
+  User ID.
+</ParamField>
+
+<ParamField path="key" type="string" required>
+  The settings key to remove.
+</ParamField>
+
+```bash
+curl -s -b cookies.txt -X DELETE \
+  https://yoursite.com/api/admin/users/<id>/settings-overrides/theme_primary_color
+```
+
+---
+
+## Chat admin endpoints
+
+Chat admin routes are under `/api/chat/admin/` and use the same admin authentication middleware.
+
+### Rooms
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/chat/admin/rooms` | List all rooms including inactive ones (adds `created_at` and `created_by` fields). |
+| `GET` | `/api/chat/admin/rooms/:id` | Get full details for a single room. |
+| `POST` | `/api/chat/admin/rooms` | Create a room. Body: `name` (required), `slug` (required), `description`, `type`, `sort_order`. |
+| `PATCH` | `/api/chat/admin/rooms/:id` | Update a room. Allowed fields: `name`, `slug`, `description`, `type`, `is_active`, `sort_order`. |
+| `DELETE` | `/api/chat/admin/rooms/:id` | Permanently delete a room and all its messages. |
+| `DELETE` | `/api/chat/admin/rooms/:roomId/messages` | Delete all messages in a room without deleting the room itself. |
+
+**Valid room types:** `community`, `support`, `custom`. Passing `public` is normalised to `community`.
+
+```bash
+# Create a room:
+curl -s -b cookies.txt -X POST https://yoursite.com/api/chat/admin/rooms \
+  -H "Content-Type: application/json" \
+  -d '{"name": "VIP Lounge", "slug": "vip-lounge", "type": "custom", "sort_order": 10}'
+```
+
+### Messages
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `DELETE` | `/api/chat/admin/messages/:id` | Soft-deletes a message (`is_deleted: true`). The message record is retained but hidden from users. |
+
+```bash
+curl -s -b cookies.txt -X DELETE https://yoursite.com/api/chat/admin/messages/<id>
+```
+
+### Settings
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `PATCH` | `/api/chat/admin/settings` | Update one or more chat settings keys. Body: `{ settings: { key: value, ... } }`. Changing `chat_enabled` instantly emits a `chat:settings_updated` Socket.IO event to all connected clients. |
+
+```bash
+# Disable chat globally:
+curl -s -b cookies.txt -X PATCH https://yoursite.com/api/chat/admin/settings \
+  -H "Content-Type: application/json" \
+  -d '{"settings": {"chat_enabled": "false"}}'
+```
+
+### Broadcasts
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/chat/admin/broadcast` | Create a broadcast. Any currently active broadcast is deactivated first. Emits `broadcast_alert` via Socket.IO. |
+| `DELETE` | `/api/chat/admin/broadcast` | Clears the active broadcast. Emits `broadcast_cleared` via Socket.IO. |
+
+**Broadcast body fields:**
+
+<ParamField body="content" type="string" required>
+  Broadcast message text. Passed through the word filter.
+</ParamField>
+
+<ParamField body="title" type="string">
+  Optional headline.
+</ParamField>
+
+<ParamField body="action_link" type="string">
+  Optional URL for a call-to-action button.
+</ParamField>
+
+<ParamField body="icon_url" type="string">
+  Optional icon URL.
+</ParamField>
+
+<ParamField body="sound_effect" type="string">
+  Sound to play on the client. Defaults to `"notification"`.
+</ParamField>
+
+<ParamField body="theme" type="string">
+  Visual theme. Defaults to `"info"`.
+</ParamField>
+
+<ParamField body="duration" type="integer">
+  How long (in seconds) the broadcast stays active. Pass `0` for no expiry. Defaults to `60`.
+</ParamField>
+
+```bash
+curl -s -b cookies.txt -X POST https://yoursite.com/api/chat/admin/broadcast \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Maintenance",
+    "content": "Brief downtime at 3 AM UTC.",
+    "theme": "warning",
+    "duration": 600
+  }'
+```
+
+Returns HTTP `201` with `{ success: true, broadcast: { ... } }`.

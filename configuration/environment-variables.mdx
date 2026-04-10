@@ -1,0 +1,99 @@
+---
+title: "Environment variables for VadedTV"
+description: "Configure VadedTV with required and optional environment variables for the Express backend server and the Vite frontend build process."
+---
+
+VadedTV uses environment variables to configure both the backend Node/Express server and the frontend Vite build. The server reads its variables from `server/env` (if present) and then from a root `.env` file. The frontend reads `VITE_*` variables at build time.
+
+## Backend variables
+
+The server validates required variables on startup and will refuse to start if any are missing.
+
+### Required
+
+| Variable | Description |
+|---|---|
+| `MONGODB_URI` | MongoDB connection string. Use a MongoDB Atlas URI for hosted deployments (e.g. `mongodb+srv://user:pass@cluster.mongodb.net/dbname`). |
+| `JWT_SECRET` | Secret key used to sign and verify JSON Web Tokens. Use a long, random string. |
+
+<Warning>
+If `MONGODB_URI` or `JWT_SECRET` are missing, the server will log an error and exit on startup.
+</Warning>
+
+### Optional — strongly recommended
+
+| Variable | Description |
+|---|---|
+| `FRONTEND_URL` | The URL of your deployed frontend (e.g. `https://vadedtv.com`). Used for CORS allow-listing. Without this, requests from your production frontend will be rejected. |
+| `SESSION_SECRET` | Secret used to sign the Express session cookie. Defaults to `your-secret-key` — always set a real value in production. |
+| `PORT` | Port the server listens on. Defaults to `3000`. |
+| `NODE_ENV` | Set to `production` to enable secure cookies, static file serving, and production-mode behaviour. Defaults to `development`. |
+| `JWT_COOKIE_EXPIRE` | Cookie expiry in days. Defaults to `30`. |
+
+### Optional — Google OAuth
+
+If either variable is missing or contains a placeholder, Google OAuth login is disabled and the server logs a warning at startup.
+
+| Variable | Description |
+|---|---|
+| `GOOGLE_CLIENT_ID` | Google OAuth 2.0 client ID from the Google Cloud Console. |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth 2.0 client secret corresponding to the client ID. |
+
+### Optional — TMDB
+
+| Variable | Description |
+|---|---|
+| `TMDB_API_KEY` | A direct TMDB API key. When set, the server uses it for Open Graph metadata generation. When absent, the server falls back to proxying requests through the Supabase Edge Function using `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. |
+
+<Note>
+You do not need `TMDB_API_KEY` if you have Supabase configured — the fallback path works automatically on both Render and Vercel deployments.
+</Note>
+
+## Frontend variables
+
+These variables are read at Vite build time. Prefix all frontend variables with `VITE_`.
+
+| Variable | Description |
+|---|---|
+| `VITE_SUPABASE_URL` | Your Supabase project URL (e.g. `https://your-project.supabase.co`). Required for auth and database access. |
+| `VITE_SUPABASE_ANON_KEY` | The Supabase anon (public) key for your project. Required for client-side Supabase calls. |
+| `VITE_APP_URL` | Optional static file hosting URL used for APK download links and other static assets. Falls back to `window.location.origin` if not set. |
+
+## Sample `.env` file
+
+Place this file at the repository root (or at `server/env` for the server-only variables):
+
+```bash
+# ── Backend (Node/Express) ────────────────────────────────────────────────────
+MONGODB_URI=mongodb+srv://user:password@cluster.mongodb.net/vadedtv
+JWT_SECRET=replace-with-a-long-random-string
+FRONTEND_URL=https://vadedtv.com
+SESSION_SECRET=replace-with-another-long-random-string
+
+# Optional
+PORT=3000
+NODE_ENV=production
+JWT_COOKIE_EXPIRE=30
+
+# Google OAuth (optional — omit to disable Google login)
+GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+
+# TMDB (optional — falls back to Supabase Edge Function)
+TMDB_API_KEY=your-tmdb-api-key
+
+# ── Frontend (Vite build) ─────────────────────────────────────────────────────
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+
+# Optional
+# VITE_APP_URL=https://your-app.com
+```
+
+<Warning>
+Never commit `.env` files to version control. Add `.env` and `server/env` to your `.gitignore`. Use your hosting provider's secrets manager or environment variable dashboard to set production values.
+</Warning>
+
+<Tip>
+For local development, copy `.env.example` to `.env` and fill in your values. The Vite dev server automatically picks up `VITE_*` variables from the root `.env`.
+</Tip>
